@@ -10,7 +10,7 @@ import type {
   Settings,
 } from '../types';
 import { awardGroups, awardOf, computeLedger, maxStakeFor, validateBid } from './engine';
-import { DEFAULT_PAYOUT_TIERS, DEMO_NAMES, defaultBranding, defaultSettings, emptyCompetition, makeEvent, nextParticipantId, normaliseAudioConfig, uid } from './defaults';
+import { DEFAULT_PAYOUT_TIERS, DEMO_NAMES, LEGACY_EVENT_TITLES, defaultBranding, defaultEventTitle, defaultSettings, emptyCompetition, makeEvent, nextParticipantId, normaliseAudioConfig, uid } from './defaults';
 
 /** Thrown when an operation violates competition rules; message is shown to the organizer. */
 export class OpError extends Error {}
@@ -682,9 +682,12 @@ export function parseBackup(raw: unknown): Data {
   const events: EventRound[] = src.events.map((raw, i) => {
     const { placements: _legacyPlacements, ...e } = raw as EventRound & { placements?: LegacyPlacements };
     void _legacyPlacements;
+    // Titles still on an old default name follow the current default; edited names are kept.
+    const title = e.title === `Event ${i + 1}: ${LEGACY_EVENT_TITLES[i]}` ? defaultEventTitle(i + 1) : e.title;
     return {
     ...makeEvent(i + 1, settings),
     ...e,
+    ...(title ? { title } : {}),
     awards: migrateAwards(raw as EventRound & { placements?: LegacyPlacements }, legacyMultipliers),
     bids: e.bids ?? {},
     participation: e.participation ?? {},

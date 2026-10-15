@@ -318,3 +318,32 @@ describe('6x … 1x multiplier awards', () => {
     expect(computeLedger(migrated).participants.map((p) => [p.id, p.currentBalance, p.totalRewardsEarned])).toEqual(expected);
   });
 });
+
+describe('event names', () => {
+  it('uses the new default list and upgrades saved events still on the old default names', async () => {
+    const { parseBackup: parse } = await import('./operations');
+    const d = setup();
+    expect(d.events.map((e) => e.title)).toEqual([
+      'Event 1: Picture Abhi Baaki Hai!',
+      'Event 2: Dhinka Chika Balloon',
+      'Event 3: Kabhi Paper, Kabhi Glamour',
+      'Event 4: Ilish Macher Jhol',
+      'Event 5: Bujha De Zara',
+      'Event 6: Zara Sa Ghoom Loon Main',
+      'Event 7: Khao Babu Khao',
+      'Event 8: Mukhe Swad, Mone Andaj',
+      'Event 9: Darr Ke Aage Glass Hai',
+      'Event 10: Chura Ke Biscuit Mera',
+    ]);
+    const old = JSON.parse(JSON.stringify(d));
+    old.events[0].title = 'Event 1: Precision Challenge';
+    old.events[1].title = 'Event 2: Memory Marathon';
+    old.events[2].title = 'Event 3: My Own Custom Round'; // organizer-edited name is kept
+    const migrated = parse(old);
+    expect(migrated.events.slice(0, 3).map((e) => e.title)).toEqual([
+      'Event 1: Picture Abhi Baaki Hai!',
+      'Event 2: Dhinka Chika Balloon',
+      'Event 3: My Own Custom Round',
+    ]);
+  });
+});

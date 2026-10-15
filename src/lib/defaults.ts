@@ -1,6 +1,20 @@
 import type { AudioConfig, AudioSlotConfig, Branding, CompetitionData, EventRound, ParticipantBase, Settings, VoiceSlotId } from '../types';
 
 export const DEFAULT_EVENT_TITLES = [
+  'Picture Abhi Baaki Hai!',
+  'Dhinka Chika Balloon',
+  'Kabhi Paper, Kabhi Glamour',
+  'Ilish Macher Jhol',
+  'Bujha De Zara',
+  'Zara Sa Ghoom Loon Main',
+  'Khao Babu Khao',
+  'Mukhe Swad, Mone Andaj',
+  'Darr Ke Aage Glass Hai',
+  'Chura Ke Biscuit Mera',
+];
+
+/** Earlier default names, so saved events still using them can be upgraded to the current ones. */
+export const LEGACY_EVENT_TITLES = [
   'Precision Challenge',
   'Memory Marathon',
   'Speed Puzzle',
@@ -12,6 +26,11 @@ export const DEFAULT_EVENT_TITLES = [
   'Ladoo Toss',
   'Grand Finale Showdown',
 ];
+
+/** Default title for an event number, e.g. "Event 1: Picture Abhi Baaki Hai!". */
+export function defaultEventTitle(eventNumber: number): string {
+  return `Event ${eventNumber}: ${DEFAULT_EVENT_TITLES[eventNumber - 1] ?? `Challenge ${eventNumber}`}`;
+}
 
 /** Payout tiers the organizer awards each round: 6x, 5x, 4x, 3x, 2x, 1x. */
 export const DEFAULT_PAYOUT_TIERS = [6, 5, 4, 3, 2, 1];
@@ -109,10 +128,9 @@ export function normaliseAudioConfig(raw: Partial<AudioConfig> | undefined): Aud
 }
 
 export function makeEvent(eventNumber: number, settings: Settings): EventRound {
-  const name = DEFAULT_EVENT_TITLES[eventNumber - 1] ?? `Challenge ${eventNumber}`;
   return {
     eventNumber,
-    title: `Event ${eventNumber}: ${name}`,
+    title: defaultEventTitle(eventNumber),
     description: '',
     status: 'UPCOMING',
     bids: {},

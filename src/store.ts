@@ -79,11 +79,12 @@ export const useCompetition = create<CompetitionStore>()(
     }),
     {
       name: STORAGE_KEY,
-      version: 5,
+      version: 6,
       storage: createJSONStorage(() => localStorage),
       // v2 renamed the game; v3 moved the name into `branding` and added the DJ/soundboard config;
       // v4 is the Kori theme (token-named fields renamed, Kori clink / festival BGM settings);
-      // v5 replaces fixed 1st/2nd/3rd placements with 6x…1x multiplier awards.
+      // v5 replaces fixed 1st/2nd/3rd placements with 6x…1x multiplier awards;
+      // v6 renames events still on the old default titles to the new event list.
       // parseBackup normalises any older shape (and fills new fields with defaults).
       migrate: (persisted) => {
         const state = persisted as { data?: CompetitionData; revision?: number };
