@@ -2,12 +2,13 @@ import { useMemo } from 'react';
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type { CompetitionData, LedgerResult } from './types';
-import { emptyCompetition } from './lib/defaults';
+import { defaultSettings, emptyCompetition } from './lib/defaults';
 import { computeLedger } from './lib/engine';
 import { OpError, finalize } from './lib/operations';
 
 export const STORAGE_KEY = 'womens-auction-challenge:v1';
 const CHANNEL_NAME = 'womens-auction-challenge-sync';
+const LEGACY_EVENT_NAME = "Women's Auction Challenge";
 
 export interface Toast {
   id: number;
@@ -79,8 +80,16 @@ export const useCompetition = create<CompetitionStore>()(
     }),
     {
       name: STORAGE_KEY,
-      version: 1,
+      version: 2,
       storage: createJSONStorage(() => localStorage),
+      // v2: the game was renamed; carry saved events still using the old default name over to the new one.
+      migrate: (persisted, version) => {
+        const state = persisted as { data?: CompetitionData; revision?: number };
+        if (version < 2 && state.data?.settings.eventName === LEGACY_EVENT_NAME) {
+          state.data = { ...state.data, settings: { ...state.data.settings, eventName: defaultSettings().eventName } };
+        }
+        return state as CompetitionStore;
+      },
       partialize: (s) => ({ data: s.data, revision: s.revision }),
     },
   ),

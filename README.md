@@ -1,6 +1,6 @@
-# Women's Auction Challenge — Live Event Management & Scoring
+# Mojar Mohajuddho — Live Event Management & Scoring
 
-A single-page React + TypeScript app for running the 10-round Women's Auction Challenge live: participants, bids, loans, winners, audited corrections, and a synced projector leaderboard.
+A single-page React + TypeScript app for running the 10-round Mojar Mohajuddho live: participants, bids, loans, winners, audited corrections, and a synced projector leaderboard.
 
 ## Quick start
 

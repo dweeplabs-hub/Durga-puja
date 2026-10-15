@@ -15,7 +15,7 @@ export const DEFAULT_EVENT_TITLES = [
 
 export function defaultSettings(): Settings {
   return {
-    eventName: "Women's Auction Challenge",
+    eventName: 'Mojar Mohajuddho',
     totalEvents: 10,
     startingBalance: 100,
     minStakePerEvent: 0,
