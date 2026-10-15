@@ -539,9 +539,13 @@ function StepConduct({ event }: { event: EventRound }) {
               <thead className="text-left text-xs uppercase tracking-wide text-slate-400">
                 <tr>
                   <th className="px-2 py-2">Participant</th>
-                  <th className="px-2 py-2 text-right">Locked Kori Stake</th>
-                  <th className="px-2 py-2 text-right">Current Koris</th>
-                  <th className="px-2 py-2">Payout multiplier</th>
+                  <th className="w-px whitespace-nowrap px-1.5 py-2 text-right" title="Locked Kori Stake">
+                    Stake
+                  </th>
+                  <th className="w-px whitespace-nowrap px-1.5 py-2 text-right" title="Current Koris">
+                    Koris
+                  </th>
+                  <th className="w-px whitespace-nowrap py-2 pl-2 pr-1">Payout multiplier</th>
                 </tr>
               </thead>
               <tbody>
@@ -550,19 +554,24 @@ function StepConduct({ event }: { event: EventRound }) {
                   const award = awardOf(event, p.id);
                   return (
                     <tr key={p.id} className={`border-t border-slate-800 ${!participating ? 'opacity-40' : ''}`}>
-                      <td className="px-2 py-2">
-                        <span className="font-medium">{p.name}</span> <span className="font-mono text-xs text-slate-500">{p.id}</span>
-                        {!participating && <span className="ml-2 text-xs text-slate-500">(sitting out)</span>}
+                      <td className="max-w-0 py-1.5 pl-2 pr-1.5">
+                        <div className="truncate font-medium leading-tight" title={p.name}>
+                          {p.name}
+                        </div>
+                        <div className="font-mono text-[11px] leading-tight text-slate-500">
+                          {p.id}
+                          {!participating && <span className="ml-1 font-sans">· sitting out</span>}
+                        </div>
                       </td>
-                      <td className="px-2 py-2 text-right tabular font-semibold text-sky-300">
-                        <Kori n={participating ? (event.bids[p.id] ?? 0) : 0} iconClassName="text-sky-300" />
+                      <td className="whitespace-nowrap px-1.5 py-1.5 text-right tabular font-semibold text-sky-300">
+                        <Kori n={participating ? (event.bids[p.id] ?? 0) : 0} size={12} iconClassName="text-sky-300" />
                       </td>
-                      <td className="px-2 py-2 text-right tabular">
-                        <Kori n={p.currentBalance} />
+                      <td className="whitespace-nowrap px-1.5 py-1.5 text-right tabular">
+                        <Kori n={p.currentBalance} size={12} />
                       </td>
-                      <td className="px-2 py-2">
+                      <td className="whitespace-nowrap py-1.5 pl-2 pr-1">
                         {participating ? (
-                          <div className="flex gap-1">
+                          <div className="flex flex-nowrap gap-1">
                             {tierButtons.map((m) => (
                               <button
                                 key={m}
@@ -570,7 +579,7 @@ function StepConduct({ event }: { event: EventRound }) {
                                 aria-pressed={award === m}
                                 aria-label={`Award ${m}x to ${p.name}`}
                                 onClick={() => run((d) => setAward(d, event.eventNumber, p.id, award === m ? null : m))}
-                                className={`min-w-9 rounded-lg px-1.5 py-1.5 text-sm font-black tabular transition ${
+                                className={`w-10 shrink-0 rounded-lg py-1.5 text-sm font-black tabular transition ${
                                   award === m ? `${tierStyle(m, tiers).solid} ring-2` : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
                                 }`}
                               >
