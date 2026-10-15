@@ -115,12 +115,60 @@ export function EventOperations({ selected, onSelect }: { selected: number; onSe
   );
 }
 
+/** Event name with an inline rename (pencil) that works at every stage of the event. */
+function EditableTitle({ event }: { event: EventRound }) {
+  const run = useCompetition((s) => s.run);
+  const [editing, setEditing] = useState(false);
+  const [text, setText] = useState(event.title);
+  const start = () => {
+    setText(event.title);
+    setEditing(true);
+  };
+  const save = () => {
+    const t = text.trim();
+    if (!t || t === event.title) return setEditing(false);
+    if (run((d) => updateEventMeta(d, event.eventNumber, { title: t }), 'Event name updated')) setEditing(false);
+  };
+  if (editing) {
+    return (
+      <form
+        className="flex min-w-0 flex-1 items-center gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          save();
+        }}
+      >
+        <input
+          autoFocus
+          aria-label="Event name"
+          className={`${inputClass} max-w-xl text-lg font-bold`}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => e.key === 'Escape' && setEditing(false)}
+        />
+        <Button type="submit" size="sm" variant="primary" disabled={!text.trim()}>
+          Save
+        </Button>
+        <Button size="sm" variant="ghost" onClick={() => setEditing(false)}>
+          Cancel
+        </Button>
+      </form>
+    );
+  }
+  return (
+    <button type="button" onClick={start} title="Rename this event" className="group flex min-w-0 items-center gap-2 text-left">
+      <h2 className="truncate text-xl font-bold">{event.title}</h2>
+      <Pencil size={16} className="shrink-0 text-slate-500 transition group-hover:text-amber-300" />
+    </button>
+  );
+}
+
 function Stepper({ event }: { event: EventRound }) {
   const idx = ORDER.indexOf(event.status);
   return (
     <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-xl font-bold">{event.title}</h2>
+        <EditableTitle event={event} />
         <StatusBadge status={event.status} />
       </div>
       <ol className="grid gap-2 md:grid-cols-4">
