@@ -66,11 +66,11 @@ export function leaderboardCsv(ledger: LedgerResult): string {
 export function roundLedgerCsv(data: CompetitionData, ledger: LedgerResult): string {
   const names = new Map(data.participants.map((p) => [p.id, p.name]));
   const rows: unknown[][] = [
-    ['Event', 'Title', 'Status', 'Participant ID', 'Name', 'Participated', 'Kori Stake', 'Placement', 'Gross Reward (Koris)', 'Kori Loan Repaid', 'Net Koris Credited', 'Koris Before', 'Koris After'],
+    ['Event', 'Title', 'Status', 'Participant ID', 'Name', 'Participated', 'Kori Stake', 'Multiplier Awarded', 'Gross Reward (Koris)', 'Kori Loan Repaid', 'Net Koris Credited', 'Koris Before', 'Koris After'],
   ];
   for (const e of data.events) {
     for (const r of ledger.roundResults[e.eventNumber] ?? []) {
-      rows.push([e.eventNumber, e.title, e.status, r.participantId, names.get(r.participantId), r.participated ? 'Yes' : 'No', r.stake, r.placement ?? '', r.grossReward, r.loanRepaid, r.netCredited, r.balanceBefore, r.balanceAfter]);
+      rows.push([e.eventNumber, e.title, e.status, r.participantId, names.get(r.participantId), r.participated ? 'Yes' : 'No', r.stake, r.award ? `${r.award}x` : '', r.grossReward, r.loanRepaid, r.netCredited, r.balanceBefore, r.balanceAfter]);
     }
   }
   return toCsv(rows);

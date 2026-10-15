@@ -5,7 +5,6 @@ import type {
   LedgerWarning,
   LoanSettings,
   Participant,
-  PlacementKey,
   RoundResult,
   Settings,
   TieBreakTier,
@@ -41,26 +40,30 @@ export function computeLoanRepayment(grossReward: number, outstandingLoan: numbe
   return round2(Math.min(outstandingLoan, Math.max(0, deduction)));
 }
 
-export function multiplierFor(placement: PlacementKey | null, settings: Settings): number {
-  if (placement === 'first') return settings.multipliers.first;
-  if (placement === 'second') return settings.multipliers.second;
-  if (placement === 'third') return settings.multipliers.third;
-  return settings.multipliers.others;
+/** Multiplier awarded to a participant in an event, or null if none. */
+export function awardOf(event: EventRound, participantId: string): number | null {
+  const m = event.awards[participantId];
+  return typeof m === 'number' && Number.isFinite(m) && m > 0 ? m : null;
 }
 
-export function pointsFor(placement: PlacementKey | null, settings: Settings): number {
-  if (placement === 'first') return settings.placementPoints.first;
-  if (placement === 'second') return settings.placementPoints.second;
-  if (placement === 'third') return settings.placementPoints.third;
-  return 0;
+/** Payout multiplier for an award (or the "others" multiplier when there is none). */
+export function multiplierFor(award: number | null, settings: Settings): number {
+  return award ?? settings.othersMultiplier;
 }
 
-/** Highest placement a participant holds in an event (guards against accidental double assignment). */
-export function placementOf(event: EventRound, participantId: string): PlacementKey | null {
-  if (event.placements.first.includes(participantId)) return 'first';
-  if (event.placements.second.includes(participantId)) return 'second';
-  if (event.placements.third.includes(participantId)) return 'third';
-  return null;
+/** Performance points (tie-breaker #3) equal the multiplier awarded. */
+export function pointsFor(award: number | null): number {
+  return award ?? 0;
+}
+
+/** Awarded participants grouped by multiplier, highest tier first. */
+export function awardGroups(event: EventRound): { multiplier: number; ids: string[] }[] {
+  const byTier = new Map<number, string[]>();
+  for (const [id, m] of Object.entries(event.awards)) {
+    if (!(m > 0)) continue;
+    byTier.set(m, [...(byTier.get(m) ?? []), id]);
+  }
+  return [...byTier.entries()].sort((a, b) => b[0] - a[0]).map(([multiplier, ids]) => ({ multiplier, ids }));
 }
 
 export function isParticipating(event: EventRound, participantId: string): boolean {
@@ -154,11 +157,9 @@ export function computeLedger(data: CompetitionData, options: LedgerOptions = {}
     const locked = event.status === 'IN_PROGRESS' || event.status === 'COMPLETED';
     if (!locked) continue;
 
-    for (const ids of Object.values(event.placements)) {
-      for (const id of ids as string[]) {
-        if (accs.has(id) && !isParticipating(event, id)) {
-          warnings.push({ eventNumber: event.eventNumber, participantId: id, message: 'Placed participant was marked as not participating; placement ignored.' });
-        }
+    for (const id of Object.keys(event.awards)) {
+      if (accs.has(id) && !isParticipating(event, id)) {
+        warnings.push({ eventNumber: event.eventNumber, participantId: id, message: 'Awarded participant was marked as not participating; award ignored.' });
       }
     }
 
@@ -181,17 +182,17 @@ export function computeLedger(data: CompetitionData, options: LedgerOptions = {}
       acc.balance = prec(acc.balance - stake);
       acc.staked = prec(acc.staked + stake);
 
-      let placement: PlacementKey | null = null;
+      let award: number | null = null;
       let grossReward = 0;
       let loanRepaid = 0;
       let netCredited = 0;
       let points = 0;
       if (settles && participated) {
-        placement = placementOf(event, p.id);
-        grossReward = prec(stake * multiplierFor(placement, settings));
+        award = awardOf(event, p.id);
+        grossReward = prec(stake * multiplierFor(award, settings));
         loanRepaid = computeLoanRepayment(grossReward, acc.loan, settings.loanSettings);
         netCredited = prec(grossReward - loanRepaid);
-        points = pointsFor(placement, settings);
+        points = pointsFor(award);
         acc.loan = prec(acc.loan - loanRepaid);
         acc.repaid = prec(acc.repaid + loanRepaid);
         acc.balance = prec(acc.balance + netCredited);
@@ -204,7 +205,7 @@ export function computeLedger(data: CompetitionData, options: LedgerOptions = {}
         participated,
         bid,
         stake,
-        placement,
+        award,
         grossReward,
         loanRepaid,
         netCredited,

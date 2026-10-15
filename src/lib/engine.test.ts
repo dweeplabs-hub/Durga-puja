@@ -12,7 +12,7 @@ import {
   parseBackup,
   publishResults,
   setBid,
-  setPlacement,
+  setAward,
   setTieBreakOrder,
   OpError,
 } from './operations';
@@ -51,7 +51,7 @@ describe('loan repayment', () => {
     d = setBid(d, 1, alice, 25);
     d = lockBidding(d, 1);
     expect(byName(d, 'Alice').currentBalance).toBe(95);
-    d = setPlacement(d, 1, alice, 'first');
+    d = setAward(d, 1, alice, 4);
     d = publishResults(d, 1);
     const a = byName(d, 'Alice');
     const rr = computeLedger(d).roundResults[1].find((r) => r.participantId === alice)!;
@@ -62,7 +62,7 @@ describe('loan repayment', () => {
     expect(a.outstandingLoan).toBe(18);
     expect(a.totalLoanRepaid).toBe(2);
     expect(a.totalRewardsEarned).toBe(100);
-    expect(a.performanceScore).toBe(3);
+    expect(a.performanceScore).toBe(4); // points = multiplier awarded
     expect(a.eventsParticipated).toBe(1);
   });
 });
@@ -77,9 +77,9 @@ describe('round payouts & ledger recalculation', () => {
     d = setBid(d, 1, c, 30);
     d = setBid(d, 1, dd, 50);
     d = lockBidding(d, 1);
-    d = setPlacement(d, 1, a, 'first');
-    d = setPlacement(d, 1, b, 'second');
-    d = setPlacement(d, 1, c, 'third');
+    d = setAward(d, 1, a, 4);
+    d = setAward(d, 1, b, 3);
+    d = setAward(d, 1, c, 2);
     return publishResults(d, 1);
   }
 
@@ -100,7 +100,7 @@ describe('round payouts & ledger recalculation', () => {
     d = openBidding(d, 2);
     d = setBid(d, 2, dd, 50); // Dia all-in on her remaining 50
     d = lockBidding(d, 2);
-    d = setPlacement(d, 2, dd, 'first');
+    d = setAward(d, 2, dd, 4);
     d = publishResults(d, 2);
     expect(byName(d, 'Dia').currentBalance).toBe(200);
 
@@ -108,14 +108,14 @@ describe('round payouts & ledger recalculation', () => {
     d = correctRound(
       d,
       1,
-      { bids: e1.bids, participation: e1.participation, placements: { first: [dd], second: [b], third: [c] } },
+      { bids: e1.bids, participation: e1.participation, awards: { [dd]: 4, [b]: 3, [c]: 2 } },
       'Judges reviewed footage',
     );
     // Round 1: Dia wins 200 -> 250; round 2: stakes 50 -> 200 + 200 = 400
     expect(byName(d, 'Dia').currentBalance).toBe(400);
     expect(byName(d, 'Alice').currentBalance).toBe(90);
     expect(d.auditLog.at(-1)?.type).toBe('RESULT_CORRECTION');
-    expect(() => correctRound(d, 1, { bids: e1.bids, participation: e1.participation, placements: { first: [a], second: [], third: [] } }, '')).toThrow(OpError);
+    expect(() => correctRound(d, 1, { bids: e1.bids, participation: e1.participation, awards: { [a]: 4 } }, '')).toThrow(OpError);
   });
 
   it('supports dead heats (multiple winners in one place)', () => {
@@ -125,8 +125,8 @@ describe('round payouts & ledger recalculation', () => {
     d = setBid(d, 1, a, 10);
     d = setBid(d, 1, b, 10);
     d = lockBidding(d, 1);
-    d = setPlacement(d, 1, a, 'first');
-    d = setPlacement(d, 1, b, 'first');
+    d = setAward(d, 1, a, 4);
+    d = setAward(d, 1, b, 4);
     d = publishResults(d, 1);
     expect(byName(d, 'Alice').currentBalance).toBe(130);
     expect(byName(d, 'Bina').currentBalance).toBe(130);
@@ -164,7 +164,7 @@ describe('ranking & tie-breakers', () => {
     d = setBid(d, 1, c, 0);
     d = setBid(d, 1, dd, 0);
     d = lockBidding(d, 1);
-    d = setPlacement(d, 1, c, 'first'); // C gets points but 0 reward
+    d = setAward(d, 1, c, 4); // C gets points but 0 reward
     d = publishResults(d, 1);
     let ranked = computeLedger(d).ranked;
     // All at 100 balance; A has loan -> last. C has 3 points -> first. B & D fully tied.
@@ -263,5 +263,87 @@ describe('Kori theme migration', () => {
       computeLedger(d).ranked.map((p) => [p.id, p.currentRank, p.currentBalance, p.totalKorisStaked, p.outstandingLoan, p.totalLoanRepaid, p.totalRewardsEarned]);
     expect(pick(migrated)).toEqual(pick(modern));
     expect(ledgerOf(migrated).ranked.some((p) => p.totalLoanRepaid > 0 || p.outstandingLoan > 0)).toBe(true);
+  });
+});
+
+describe('6x … 1x multiplier awards', () => {
+  it('pays own stake × the awarded multiplier, scores points = multiplier, others lose their stake', () => {
+    let d = setup(['A', 'B', 'C', 'D', 'E', 'F', 'G']);
+    expect(d.settings.payoutTiers).toEqual([6, 5, 4, 3, 2, 1]);
+    const ids = d.participants.map((p) => p.id);
+    d = openBidding(d, 1);
+    for (const id of ids) d = setBid(d, 1, id, 10);
+    d = lockBidding(d, 1);
+    [6, 5, 4, 3, 2, 1].forEach((m, i) => (d = setAward(d, 1, ids[i], m)));
+    d = publishResults(d, 1);
+    const l = computeLedger(d);
+    const bal = (id: string) => l.participants.find((p) => p.id === id)!;
+    expect(ids.map((id) => bal(id).currentBalance)).toEqual([150, 140, 130, 120, 110, 100, 90]);
+    expect(ids.map((id) => bal(id).performanceScore)).toEqual([6, 5, 4, 3, 2, 1, 0]);
+    expect(l.roundResults[1].map((r) => r.award)).toEqual([6, 5, 4, 3, 2, 1, null]);
+    // Several players can share a tier; clicking the same tier again clears it.
+    expect(() => publishResults(setAward(lockBidding(openBidding(advanceEvent(d), 2), 2), 2, ids[0], null), 2)).toThrow(/Award at least one/);
+  });
+
+  it('migrates old 1st/2nd/3rd placements to awards that keep past payouts identical', async () => {
+    const { parseBackup: parse } = await import('./operations');
+    let d = setup();
+    const [a, b, c] = d.participants.map((p) => p.id);
+    d = openBidding(d, 1);
+    for (const id of [a, b, c]) d = setBid(d, 1, id, 10);
+    d = lockBidding(d, 1);
+    d = setAward(d, 1, a, 4);
+    d = setAward(d, 1, b, 3);
+    d = setAward(d, 1, c, 2);
+    d = publishResults(d, 1);
+    const expected = computeLedger(d).participants.map((p) => [p.id, p.currentBalance, p.totalRewardsEarned]);
+
+    // Shape it like a pre-v5 save: fixed placements + multipliers/placementPoints in settings.
+    const legacy = JSON.parse(JSON.stringify(d));
+    delete legacy.settings.payoutTiers;
+    delete legacy.settings.othersMultiplier;
+    legacy.settings.multipliers = { first: 4, second: 3, third: 2, others: 0 };
+    legacy.settings.placementPoints = { first: 3, second: 2, third: 1 };
+    for (const e of legacy.events) {
+      e.placements = { first: [], second: [], third: [] };
+      delete e.awards;
+    }
+    legacy.events[0].placements = { first: [a], second: [b], third: [c] };
+
+    const migrated = parse(legacy);
+    expect(migrated.events[0].awards).toEqual({ [a]: 4, [b]: 3, [c]: 2 });
+    expect('placements' in migrated.events[0]).toBe(false);
+    expect('multipliers' in migrated.settings).toBe(false);
+    expect(migrated.settings.payoutTiers).toEqual([6, 5, 4, 3, 2, 1]);
+    expect(computeLedger(migrated).participants.map((p) => [p.id, p.currentBalance, p.totalRewardsEarned])).toEqual(expected);
+  });
+});
+
+describe('event names', () => {
+  it('uses the new default list and upgrades saved events still on the old default names', async () => {
+    const { parseBackup: parse } = await import('./operations');
+    const d = setup();
+    expect(d.events.map((e) => e.title)).toEqual([
+      'Event 1: Picture Abhi Baaki Hai!',
+      'Event 2: Dhinka Chika Balloon',
+      'Event 3: Kabhi Paper, Kabhi Glamour',
+      'Event 4: Ilish Macher Jhol',
+      'Event 5: Bujha De Zara',
+      'Event 6: Zara Sa Ghoom Loon Main',
+      'Event 7: Khao Babu Khao',
+      'Event 8: Mukhe Swad, Mone Andaj',
+      'Event 9: Darr Ke Aage Glass Hai',
+      'Event 10: Chura Ke Biscuit Mera',
+    ]);
+    const old = JSON.parse(JSON.stringify(d));
+    old.events[0].title = 'Event 1: Precision Challenge';
+    old.events[1].title = 'Event 2: Memory Marathon';
+    old.events[2].title = 'Event 3: My Own Custom Round'; // organizer-edited name is kept
+    const migrated = parse(old);
+    expect(migrated.events.slice(0, 3).map((e) => e.title)).toEqual([
+      'Event 1: Picture Abhi Baaki Hai!',
+      'Event 2: Dhinka Chika Balloon',
+      'Event 3: My Own Custom Round',
+    ]);
   });
 });

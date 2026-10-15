@@ -260,8 +260,23 @@ export function fmt(n: number): string {
   return Number.isInteger(n) ? n.toLocaleString() : n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-export const PLACE_META = {
-  first: { label: '1st', long: '1st Place', emoji: '🥇', ring: 'ring-amber-400', bg: 'bg-amber-400', text: 'text-amber-300' },
-  second: { label: '2nd', long: '2nd Place', emoji: '🥈', ring: 'ring-slate-300', bg: 'bg-slate-300', text: 'text-slate-200' },
-  third: { label: '3rd', long: '3rd Place', emoji: '🥉', ring: 'ring-orange-500', bg: 'bg-orange-500', text: 'text-orange-300' },
-} as const;
+/** Colours for payout tiers, highest multiplier first (gold → slate). */
+const TIER_STYLES = [
+  { solid: 'bg-amber-400 text-amber-950 ring-amber-200', text: 'text-amber-300' },
+  { solid: 'bg-orange-400 text-orange-950 ring-orange-200', text: 'text-orange-300' },
+  { solid: 'bg-red-400 text-red-950 ring-red-200', text: 'text-red-300' },
+  { solid: 'bg-sky-400 text-sky-950 ring-sky-200', text: 'text-sky-300' },
+  { solid: 'bg-teal-400 text-teal-950 ring-teal-200', text: 'text-teal-300' },
+  { solid: 'bg-slate-300 text-slate-900 ring-slate-100', text: 'text-slate-300' },
+];
+
+/** Style for a multiplier, by its rank among the configured tiers (multipliers outside the list still get a sensible colour). */
+export function tierStyle(multiplier: number, tiers: number[]) {
+  const rank = tiers.filter((t) => t > multiplier).length;
+  return TIER_STYLES[Math.min(rank, TIER_STYLES.length - 1)];
+}
+
+/** Compact "6x" chip for an awarded multiplier. */
+export function MultiplierBadge({ m, tiers, className = '' }: { m: number; tiers: number[]; className?: string }) {
+  return <span className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-xs font-black tabular ${tierStyle(m, tiers).solid} ${className}`}>{m}x</span>;
+}

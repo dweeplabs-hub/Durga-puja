@@ -7,7 +7,7 @@ import { clearTieBreakOrder, setShowLoanColumnsPublic, setTieBreakOrder } from '
 import { downloadFile, leaderboardCsv } from '../lib/exporters';
 import { LeaderboardTable } from './LeaderboardTable';
 import { Podium } from './Podium';
-import { Badge, Button, Card, Field, Modal, PLACE_META, Toggle, inputClass, fmt } from './ui';
+import { Badge, Button, Card, Field, Modal, MultiplierBadge, Toggle, inputClass, fmt } from './ui';
 
 export function LeaderboardView() {
   const data = useCompetition((s) => s.data);
@@ -58,8 +58,7 @@ export function LeaderboardView() {
             <b className="text-slate-200">2.</b> Lower outstanding loan
           </p>
           <p>
-            <b className="text-slate-200">3.</b> Higher performance score (1st={data.settings.placementPoints.first}, 2nd={data.settings.placementPoints.second}, 3rd=
-            {data.settings.placementPoints.third}), then total rewards
+            <b className="text-slate-200">3.</b> Higher performance score (sum of multipliers won, e.g. a 6x award = 6 points), then total rewards
           </p>
           <p>
             <b className="text-slate-200">4.</b> Final tie-break challenge order (set via “Resolve Tie”)
@@ -115,7 +114,8 @@ function MasterTable() {
                   return (
                     <td key={e.eventNumber} className="px-2 py-1.5 text-center" title={`Kori stake ${r.stake}, gross ${r.grossReward}, Kori Loan repaid ${r.loanRepaid}`}>
                       <div className="text-slate-400">
-                        {r.placement && PLACE_META[r.placement].emoji} {fmt(r.stake)}
+                        {r.award && <MultiplierBadge m={r.award} tiers={data.settings.payoutTiers} className="mr-1 px-1 py-0 text-[10px]" />}
+                        {fmt(r.stake)}
                       </div>
                       <div className={pending ? 'text-sky-300' : delta > 0 ? 'text-emerald-300' : delta < 0 ? 'text-rose-300' : 'text-slate-500'}>
                         {pending ? 'locked' : `${delta > 0 ? '+' : ''}${fmt(delta)}`}
@@ -130,7 +130,7 @@ function MasterTable() {
           </tbody>
         </table>
       </div>
-      <p className="mt-2 text-xs text-slate-500">Each cell shows the Kori stake (top) and the net change in koris for the round (bottom). Hover for details.</p>
+      <p className="mt-2 text-xs text-slate-500">Each cell shows the multiplier awarded and Kori stake (top) and the net change in koris for the round (bottom). Hover for details.</p>
     </Card>
   );
 }

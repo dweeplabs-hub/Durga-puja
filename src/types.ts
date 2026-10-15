@@ -1,20 +1,6 @@
 export type EventStatus = 'UPCOMING' | 'BIDDING_OPEN' | 'IN_PROGRESS' | 'COMPLETED';
 export type RepaymentPrecision = 'INTEGER' | 'DECIMAL2';
 export type AuditType = 'LOAN_ISSUED' | 'ROUND_COMPLETED' | 'RESULT_CORRECTION' | 'MANUAL_ADJUSTMENT';
-export type PlacementKey = 'first' | 'second' | 'third';
-
-export interface Multipliers {
-  first: number;
-  second: number;
-  third: number;
-  others: number;
-}
-
-export interface PlacementPoints {
-  first: number;
-  second: number;
-  third: number;
-}
 
 export interface LoanSettings {
   fixedLoanTranche: number;
@@ -32,8 +18,13 @@ export interface Settings {
   startingBalance: number;
   minStakePerEvent: number;
   maxStakePerEvent: number;
-  multipliers: Multipliers;
-  placementPoints: PlacementPoints;
+  /**
+   * Payout multipliers the organizer can award each round, highest first (default 6x…1x).
+   * Gross reward = own stake × awarded multiplier; performance points = the multiplier.
+   */
+  payoutTiers: number[];
+  /** Multiplier for participants who receive no award (0 = stake is lost). */
+  othersMultiplier: number;
   loanSettings: LoanSettings;
   defaultBiddingSeconds: number;
 }
@@ -69,18 +60,13 @@ export interface Participant extends ParticipantBase {
   inTieGroup: boolean;
 }
 
-export interface Placements {
-  first: string[];
-  second: string[];
-  third: string[];
-}
-
 export interface RoundResult {
   participantId: string;
   participated: boolean;
   bid: number;
   stake: number;
-  placement: PlacementKey | null;
+  /** Multiplier awarded this round, or null if none (paid at the "others" multiplier). */
+  award: number | null;
   grossReward: number;
   loanRepaid: number;
   netCredited: number;
@@ -96,7 +82,8 @@ export interface EventRound {
   status: EventStatus;
   bids: Record<string, number>;
   participation: Record<string, boolean>;
-  placements: Placements;
+  /** participantId → multiplier awarded (e.g. 6 for "6x"). Several participants may share a tier. */
+  awards: Record<string, number>;
   /** Computed by the engine; persisted copy is a snapshot for exports. */
   roundResults: RoundResult[];
   biddingEndsAt: number | null;
