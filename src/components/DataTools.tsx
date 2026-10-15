@@ -12,6 +12,9 @@ function useDataActions() {
   const ledger = useLedger();
   const hasData = data.participants.length > 0 || competitionStarted(data);
 
+  // The DJ setup and branding survive demo loads and resets: uploaded MP3s live in IndexedDB regardless.
+  const keep = { audio: data.audio, branding: data.branding, projectorLanguage: data.projectorLanguage };
+
   const guard = (message: string) => !hasData || window.confirm(`${message}\n\nTip: export a JSON backup first. Continue?`);
 
   return {
@@ -29,18 +32,18 @@ function useDataActions() {
     },
     loadDemo: (rounds: number) => {
       if (!guard('Loading demo data will replace ALL current event data.')) return;
-      replaceData(buildDemo(rounds));
+      replaceData({ ...buildDemo(rounds), ...keep });
       toast.success(rounds ? `Demo loaded with ${rounds} simulated rounds` : 'Demo loaded: 12 participants ready for Event 1');
     },
     resetResults: () => {
       if (!window.confirm('Reset all results, loans and audit history but keep the participant roster and rules?')) return;
       const fresh = emptyCompetition(data.settings);
-      replaceData({ ...fresh, participants: data.participants.map((p) => ({ ...p, tieBreakOrder: 0 })), showLoanColumnsPublic: data.showLoanColumnsPublic });
+      replaceData({ ...fresh, ...keep, participants: data.participants.map((p) => ({ ...p, tieBreakOrder: 0 })), showLoanColumnsPublic: data.showLoanColumnsPublic });
       toast.info('Results reset — roster kept');
     },
     resetAll: () => {
-      if (!window.confirm('Erase EVERYTHING (participants, rules, results, audit log) and start from a clean slate?')) return;
-      replaceData(emptyCompetition());
+      if (!window.confirm('Erase participants, rules, results and the audit log and start from a clean slate? (Branding and the DJ soundboard are kept.)')) return;
+      replaceData({ ...emptyCompetition(), ...keep });
       toast.info('Clean slate ready');
     },
   };

@@ -1,14 +1,18 @@
 import type {
+  AudioConfig,
+  AudioSlotConfig,
   AuditEntry,
+  Branding,
   CompetitionData,
   EventRound,
   ParticipantBase,
   PlacementKey,
   Placements,
+  ProjectorLanguage,
   Settings,
 } from '../types';
 import { computeLedger, maxStakeFor, placementOf, validateBid } from './engine';
-import { DEMO_NAMES, emptyCompetition, defaultSettings, makeEvent, nextParticipantId, uid } from './defaults';
+import { DEMO_NAMES, defaultBranding, defaultSettings, emptyCompetition, makeEvent, nextParticipantId, normaliseAudioConfig, uid } from './defaults';
 
 /** Thrown when an operation violates competition rules; message is shown to the organizer. */
 export class OpError extends Error {}
@@ -70,14 +74,14 @@ export function updateSettings(d: Data, next: Settings): Data {
   if (settingsLocked(d)) fail('Rules are locked. Unlock them before Round 1 starts to make changes.');
   assertNum(next.totalEvents, 'Total events', 1);
   if (!Number.isInteger(next.totalEvents) || next.totalEvents > 50) fail('Total events must be a whole number between 1 and 50');
-  assertNum(next.startingBalance, 'Starting balance');
-  assertNum(next.minStakePerEvent, 'Minimum stake');
-  assertNum(next.maxStakePerEvent, 'Maximum stake', 1);
-  if (next.minStakePerEvent > next.maxStakePerEvent) fail('Minimum stake cannot exceed maximum stake');
+  assertNum(next.startingBalance, 'Starting Koris');
+  assertNum(next.minStakePerEvent, 'Min Kori Stake');
+  assertNum(next.maxStakePerEvent, 'Max Kori Stake', 1);
+  if (next.minStakePerEvent > next.maxStakePerEvent) fail('Min Kori Stake cannot exceed Max Kori Stake');
   for (const [k, v] of Object.entries(next.multipliers)) assertNum(v, `Multiplier (${k})`);
   for (const [k, v] of Object.entries(next.placementPoints)) assertNum(v, `Points (${k})`);
-  assertNum(next.loanSettings.fixedLoanTranche, 'Loan tranche', 1);
-  assertNum(next.loanSettings.maxTotalLoanPerParticipant, 'Max loan', 0);
+  assertNum(next.loanSettings.fixedLoanTranche, 'Kori Loan tranche', 1);
+  assertNum(next.loanSettings.maxTotalLoanPerParticipant, 'Max Kori Loan', 0);
   assertNum(next.loanSettings.repaymentRatePercent, 'Repayment rate');
   if (next.loanSettings.repaymentRatePercent > 100) fail('Repayment rate cannot exceed 100%');
   assertNum(next.defaultBiddingSeconds, 'Bidding window', 0);
@@ -113,6 +117,67 @@ export function setShowLoanColumnsPublic(d: Data, show: boolean): Data {
   return { ...d, showLoanColumnsPublic: show };
 }
 
+// ---------------------------------------------------------------- branding & audio (editable at any time)
+
+export function updateBranding(d: Data, patch: Partial<Branding>): Data {
+  const next = { ...d.branding, ...patch };
+  if (!next.titleBn.trim() && !next.titleEn.trim()) fail('Enter a Bengali or English event title');
+  return { ...d, branding: next };
+}
+
+export function setProjectorLanguage(d: Data, language: ProjectorLanguage): Data {
+  return { ...d, projectorLanguage: language };
+}
+
+const clamp01 = (n: number) => Math.min(1, Math.max(0, n));
+
+export function updateAudio(d: Data, patch: Partial<Omit<AudioConfig, 'slots'>>): Data {
+  const next = { ...d.audio, ...patch };
+  next.masterVolume = clamp01(next.masterVolume);
+  next.bgmVolume = clamp01(next.bgmVolume);
+  next.sfxVolume = clamp01(next.sfxVolume);
+  return { ...d, audio: next };
+}
+
+export function updateAudioSlot(d: Data, id: string, patch: Partial<Omit<AudioSlotConfig, 'id' | 'custom'>>): Data {
+  if (!d.audio.slots.some((s) => s.id === id)) fail('Unknown audio slot');
+  if (patch.hotkey !== undefined && patch.hotkey !== null) {
+    if (!Number.isInteger(patch.hotkey) || patch.hotkey < 1 || patch.hotkey > 9) fail('Hotkeys run from Alt+1 to Alt+9');
+    if (d.audio.slots.some((s) => s.id !== id && s.hotkey === patch.hotkey)) fail(`Alt+${patch.hotkey} is already assigned`);
+  }
+  if (patch.labelEn !== undefined && !patch.labelEn.trim() && !(patch.labelBn ?? '').trim()) fail('A slot needs a name');
+  const volume = patch.volume === undefined ? undefined : clamp01(patch.volume);
+  return {
+    ...d,
+    audio: { ...d.audio, slots: d.audio.slots.map((s) => (s.id === id ? { ...s, ...patch, ...(volume === undefined ? {} : { volume }) } : s)) },
+  };
+}
+
+export function addCustomAudioSlot(d: Data, labelEn: string, labelBn = ''): Data {
+  if (!labelEn.trim() && !labelBn.trim()) fail('Give the new pad a name');
+  const used = new Set(d.audio.slots.map((s) => s.hotkey));
+  const hotkey = [1, 2, 3, 4, 5, 6, 7, 8, 9].find((n) => !used.has(n)) ?? null;
+  const slot: AudioSlotConfig = {
+    id: uid('CUSTOM-'),
+    labelBn: labelBn.trim(),
+    labelEn: labelEn.trim(),
+    hotkey,
+    autoTrigger: false,
+    mode: 'MP3',
+    volume: 1,
+    loop: false,
+    custom: true,
+    script: '',
+  };
+  return { ...d, audio: { ...d.audio, slots: [...d.audio.slots, slot] } };
+}
+
+export function removeCustomAudioSlot(d: Data, id: string): Data {
+  const slot = d.audio.slots.find((s) => s.id === id) ?? fail('Unknown audio slot');
+  if (!slot.custom) fail('Built-in announcement slots cannot be removed (delete the file to reset it)');
+  return { ...d, audio: { ...d.audio, slots: d.audio.slots.filter((s) => s.id !== id) } };
+}
+
 // ---------------------------------------------------------------- participants
 
 export function addParticipant(d: Data, name: string, startingBalance?: number): Data {
@@ -121,7 +186,7 @@ export function addParticipant(d: Data, name: string, startingBalance?: number):
   if (d.participants.some((p) => p.name.toLowerCase() === trimmed.toLowerCase())) fail(`"${trimmed}" is already registered`);
   if (d.scoresFrozen) fail('Scores are frozen');
   const bal = startingBalance ?? d.settings.startingBalance;
-  assertNum(bal, 'Starting balance');
+  assertNum(bal, 'Starting Koris');
   const p: ParticipantBase = { id: nextParticipantId(d.participants), name: trimmed, startingBalance: bal, tieBreakOrder: 0 };
   // Late entrants sit out rounds that are already locked, and join an open bidding round with a 0 stake.
   const events = d.events.map((e) => {
@@ -143,7 +208,7 @@ export function updateParticipant(d: Data, id: string, patch: Partial<Pick<Parti
   if (patch.startingBalance !== undefined) {
     assertNum(patch.startingBalance, 'Starting balance');
     if (patch.startingBalance !== existing.startingBalance && competitionStarted(d)) {
-      fail('Starting balances cannot change after the competition has started. Use a manual adjustment instead.');
+      fail('Starting Koris cannot change after the competition has started. Use a manual adjustment instead.');
     }
   }
   return { ...d, participants: d.participants.map((p) => (p.id === id ? { ...p, ...patch } : p)) };
@@ -390,7 +455,7 @@ export function correctRound(d: Data, n: number, correction: RoundCorrection, re
   if (e.status === 'COMPLETED' && correction.placements.first.length === 0) fail('A completed round needs at least one 1st place winner');
   for (const [id, b] of Object.entries(correction.bids)) {
     if (!Number.isFinite(b) || b < 0) fail(`Invalid stake for ${nameOf(d, id)}`);
-    if (b > d.settings.maxStakePerEvent && correction.participation[id] !== false) fail(`${nameOf(d, id)}'s stake exceeds the max stake of ${d.settings.maxStakePerEvent}`);
+    if (b > d.settings.maxStakePerEvent && correction.participation[id] !== false) fail(`${nameOf(d, id)}'s stake exceeds the Max Kori Stake of ${d.settings.maxStakePerEvent}`);
   }
 
   const before = computeLedger(d);
@@ -423,7 +488,7 @@ export function correctRound(d: Data, n: number, correction: RoundCorrection, re
     type: 'RESULT_CORRECTION',
     eventNumber: n,
     reason: reason.trim(),
-    details: `${changes.join('; ')}. Balances recalculated: ${balanceDiffs.length ? balanceDiffs.join(', ') : 'no change'}.${
+    details: `${changes.join('; ')}. Koris recalculated: ${balanceDiffs.length ? balanceDiffs.join(', ') : 'no change'}.${
       newWarnings.length ? ` Warnings: ${newWarnings.map((w) => w.message).join(' ')}` : ''
     }`,
   });
@@ -448,11 +513,11 @@ export function loanHeadroom(d: Data, participantId: string): number {
 export function issueLoan(d: Data, participantId: string, amount: number): Data {
   if (d.scoresFrozen) fail('Scores are frozen');
   const p = d.participants.find((x) => x.id === participantId) ?? fail('Unknown participant');
-  if (!Number.isFinite(amount) || amount <= 0) fail('Loan amount must be positive');
+  if (!Number.isFinite(amount) || amount <= 0) fail('Kori Loan amount must be positive');
   const slot = nextLedgerSlot(d);
   if (slot === null) fail('No events remain; loans can only be issued before a bidding lock');
   const headroom = loanHeadroom(d, participantId);
-  if (amount > headroom) fail(`${p.name} can borrow at most ${headroom} more tokens (limit ${d.settings.loanSettings.maxTotalLoanPerParticipant} outstanding)`);
+  if (amount > headroom) fail(`${p.name} can borrow at most ${headroom} more koris (Kori Loan limit ${d.settings.loanSettings.maxTotalLoanPerParticipant} outstanding)`);
   const next: Data = {
     ...d,
     loans: [...d.loans, { id: uid('L-'), participantId, amount, appliesBeforeEvent: slot, timestamp: nowIso() }],
@@ -463,8 +528,8 @@ export function issueLoan(d: Data, participantId: string, amount: number): Data 
     type: 'LOAN_ISSUED',
     eventNumber: slot,
     participantId,
-    reason: 'Loan tranche granted',
-    details: `${p.name} borrowed ${amount} tokens before Event ${slot}. Outstanding loan now ${after.outstandingLoan}; balance ${after.currentBalance}.`,
+    reason: 'Kori Loan (কড়ি ধার) granted',
+    details: `${p.name} borrowed ${amount} koris (কড়ি ধার) before Event ${slot}. Outstanding Kori Loan now ${after.outstandingLoan}; current koris ${after.currentBalance}.`,
   });
 }
 
@@ -475,7 +540,7 @@ export function addAdjustment(d: Data, participantId: string, amount: number, re
   if (d.scoresFrozen) fail('Unfreeze scores before making adjustments');
   const slot = nextLedgerSlot(d) ?? d.settings.totalEvents + 1;
   const before = computeLedger(d).participants.find((x) => x.id === participantId)!;
-  if (before.currentBalance + amount < 0) fail(`${p.name} only has ${before.currentBalance} tokens`);
+  if (before.currentBalance + amount < 0) fail(`${p.name} only has ${before.currentBalance} koris`);
   const next: Data = {
     ...d,
     adjustments: [...d.adjustments, { id: uid('M-'), participantId, amount, appliesBeforeEvent: slot, reason: reason.trim(), timestamp: nowIso() }],
@@ -485,7 +550,7 @@ export function addAdjustment(d: Data, participantId: string, amount: number, re
     participantId,
     eventNumber: slot <= d.settings.totalEvents ? slot : undefined,
     reason: reason.trim(),
-    details: `${p.name} balance ${amount > 0 ? '+' : ''}${amount} tokens (${before.currentBalance}→${before.currentBalance + amount}).`,
+    details: `${p.name} ${amount > 0 ? '+' : ''}${amount} koris (${before.currentBalance}→${before.currentBalance + amount}).`,
   });
 }
 
@@ -560,6 +625,19 @@ export function buildDemo(simulatedRounds = 0, seed = 2026): Data {
   return finalize(d);
 }
 
+/**
+ * Pre-Kori saves called the minimum-deduction switch `minimumOneTokenDeduction`.
+ * Carry its value over to `minimumOneKoriDeduction` and drop the old key.
+ */
+function migrateLoanSettings(base: Settings['loanSettings'], saved: Partial<Settings['loanSettings']> | undefined): Settings['loanSettings'] {
+  const { minimumOneTokenDeduction: legacy, ...rest } = (saved ?? {}) as Partial<Settings['loanSettings']> & { minimumOneTokenDeduction?: boolean };
+  return {
+    ...base,
+    ...rest,
+    minimumOneKoriDeduction: rest.minimumOneKoriDeduction ?? legacy ?? base.minimumOneKoriDeduction,
+  };
+}
+
 /** Validates and normalises an imported JSON backup. */
 export function parseBackup(raw: unknown): Data {
   if (!raw || typeof raw !== 'object') fail('Backup file is not a JSON object');
@@ -567,12 +645,13 @@ export function parseBackup(raw: unknown): Data {
   const src = (obj.data && typeof obj.data === 'object' ? obj.data : obj) as Partial<Data>;
   if (!Array.isArray(src.participants) || !Array.isArray(src.events) || !src.settings) fail('Backup is missing participants, events or settings');
   const base = defaultSettings();
+  const { eventName: legacyName, ...savedSettings } = src.settings as Settings & { eventName?: string };
   const settings: Settings = {
     ...base,
-    ...src.settings,
+    ...savedSettings,
     multipliers: { ...base.multipliers, ...src.settings.multipliers },
     placementPoints: { ...base.placementPoints, ...src.settings.placementPoints },
-    loanSettings: { ...base.loanSettings, ...src.settings.loanSettings },
+    loanSettings: migrateLoanSettings(base.loanSettings, src.settings.loanSettings),
   };
   const events: EventRound[] = src.events.map((e, i) => ({
     ...makeEvent(i + 1, settings),
@@ -582,8 +661,13 @@ export function parseBackup(raw: unknown): Data {
     participation: e.participation ?? {},
   }));
   if (events.length !== settings.totalEvents) fail('Backup event count does not match its settings');
+  const branding = { ...defaultBranding(), ...src.branding };
+  if (!src.branding && legacyName && legacyName !== "Women's Auction Challenge" && legacyName !== 'Mojar Mohajuddho') branding.titleEn = legacyName;
   const data: Data = {
     version: 1,
+    branding,
+    projectorLanguage: src.projectorLanguage === 'ENGLISH' ? 'ENGLISH' : 'BILINGUAL',
+    audio: normaliseAudioConfig(src.audio),
     settings,
     rulesLocked: Boolean(src.rulesLocked),
     participants: src.participants.map((p) => ({ ...p, tieBreakOrder: Number(p.tieBreakOrder) || 0, startingBalance: Number(p.startingBalance ?? settings.startingBalance) })),

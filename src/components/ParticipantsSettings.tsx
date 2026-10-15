@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
-import { Database, Lock, Settings2, Trash2, Unlock, Upload, UserPlus, Users } from 'lucide-react';
-import type { Settings } from '../types';
+import { Database, Languages, Lock, Settings2, Sparkles, Trash2, Unlock, Upload, UserPlus, Users } from 'lucide-react';
+import type { Branding, Settings } from '../types';
+import { defaultBranding } from '../lib/defaults';
 import { useCompetition, useLedger, toast } from '../store';
 import {
   addParticipant,
@@ -8,6 +9,8 @@ import {
   importRoster,
   lockRules,
   removeParticipant,
+  setProjectorLanguage,
+  updateBranding,
   settingsLocked,
   unlockRules,
   updateParticipant,
@@ -22,6 +25,7 @@ export function ParticipantsSettings() {
     <div className="grid gap-6 xl:grid-cols-[1fr_1fr]">
       <ParticipantsCard />
       <div className="space-y-6">
+        <BrandingCard />
         <SettingsCard />
         <Card title="Data & Backups" icon={<Database size={18} className="text-emerald-400" />}>
           <DataTools layout="panel" />
@@ -75,7 +79,7 @@ function ParticipantsCard() {
               e.target.value = '';
             }}
           />
-          <Button size="sm" onClick={() => fileRef.current?.click()} title="CSV with a 'Name' column and optional 'Starting Balance' column">
+          <Button size="sm" onClick={() => fileRef.current?.click()} title="CSV with a 'Name' column and optional 'Starting Koris' column">
             <Upload size={14} /> Import roster CSV
           </Button>
         </>
@@ -94,8 +98,8 @@ function ParticipantsCard() {
           </Field>
         </div>
         <div className="w-32">
-          <Field label="Starting tokens">
-            <NumberInput value={bal} min={0} commitOnChange onCommit={setBal} ariaLabel="Starting balance" />
+          <Field label="Starting Koris">
+            <NumberInput value={bal} min={0} commitOnChange onCommit={setBal} ariaLabel="Starting Koris" />
           </Field>
         </div>
         <Button type="submit" variant="primary" disabled={!name.trim()}>
@@ -110,7 +114,7 @@ function ParticipantsCard() {
               <th className="px-2 py-2">ID</th>
               <th className="px-2 py-2">Name</th>
               <th className="px-2 py-2">Start</th>
-              <th className="px-2 py-2 text-right">Balance</th>
+              <th className="px-2 py-2 text-right">Current Koris</th>
               <th className="px-2 py-2" />
             </tr>
           </thead>
@@ -122,7 +126,7 @@ function ParticipantsCard() {
                   <NameInput value={p.name} onCommit={(v) => run((d) => updateParticipant(d, p.id, { name: v }))} />
                 </td>
                 <td className="w-28 px-2 py-1.5">
-                  <NumberInput value={p.startingBalance} min={0} disabled={started} ariaLabel={`Starting balance for ${p.name}`} onCommit={(n) => run((d) => updateParticipant(d, p.id, { startingBalance: n }))} />
+                  <NumberInput value={p.startingBalance} min={0} disabled={started} ariaLabel={`Starting Koris for ${p.name}`} onCommit={(n) => run((d) => updateParticipant(d, p.id, { startingBalance: n }))} />
                 </td>
                 <td className="px-2 py-1.5 text-right tabular">{fmt(p.currentBalance)}</td>
                 <td className="px-2 py-1.5 text-right">
@@ -214,17 +218,12 @@ function SettingsCard() {
         )
       }
     >
-      {locked && <p className="mb-4 text-xs text-amber-200/80">{started ? 'Rules lock automatically once bidding opens for Event 1 or a loan is issued.' : 'Unlock to edit.'}</p>}
+      {locked && <p className="mb-4 text-xs text-amber-200/80">{started ? 'Rules lock automatically once bidding opens for Event 1 or a Kori Loan is issued.' : 'Unlock to edit.'}</p>}
       <div className="grid gap-4 sm:grid-cols-2">
-        <div className="sm:col-span-2">
-          <Field label="Event name">
-            <input className={inputClass} disabled={locked} value={draft.eventName} onChange={(e) => set('eventName', e.target.value)} />
-          </Field>
-        </div>
         {num('Total events', draft.totalEvents, (n) => set('totalEvents', n))}
-        {num('Starting balance', draft.startingBalance, (n) => set('startingBalance', n), 'Virtual tokens per participant')}
-        {num('Min stake per event', draft.minStakePerEvent, (n) => set('minStakePerEvent', n))}
-        {num('Max stake per event', draft.maxStakePerEvent, (n) => set('maxStakePerEvent', n), 'Prevents all-in elimination')}
+        {num('Starting Koris', draft.startingBalance, (n) => set('startingBalance', n), 'খেলার কড়ি — Koris (কড়ি) each participant starts with')}
+        {num('Min Kori Stake per event', draft.minStakePerEvent, (n) => set('minStakePerEvent', n))}
+        {num('Max Kori Stake per event', draft.maxStakePerEvent, (n) => set('maxStakePerEvent', n), 'Prevents all-in elimination')}
       </div>
 
       <p className="mb-2 mt-6 text-xs font-semibold uppercase tracking-wider text-slate-400">Payout multipliers (total returned incl. stake)</p>
@@ -243,7 +242,7 @@ function SettingsCard() {
 
       <p className="mb-2 mt-6 text-xs font-semibold uppercase tracking-wider text-slate-400">Loans</p>
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Fixed loan tranche">
+        <Field label="Kori Loan tranche (কড়ি ধার)">
           <div className="flex gap-2">
             {[20, 50].map((v) => (
               <Button key={v} size="sm" disabled={locked} variant={draft.loanSettings.fixedLoanTranche === v ? 'primary' : 'secondary'} onClick={() => setLoan('fixedLoanTranche', v)}>
@@ -253,31 +252,31 @@ function SettingsCard() {
             <NumberInput value={draft.loanSettings.fixedLoanTranche} min={1} disabled={locked} commitOnChange onCommit={(n) => setLoan('fixedLoanTranche', n)} ariaLabel="Loan tranche" />
           </div>
         </Field>
-        {num('Max outstanding loan / participant', draft.loanSettings.maxTotalLoanPerParticipant, (n) => setLoan('maxTotalLoanPerParticipant', n))}
-        {num('Repayment rate (% of gross reward)', draft.loanSettings.repaymentRatePercent, (n) => setLoan('repaymentRatePercent', n), 'e.g. 2 → a 100-token reward repays 2 and credits 98', 0.5)}
-        <Field label="Token precision">
+        {num('Max outstanding Kori Loan / participant', draft.loanSettings.maxTotalLoanPerParticipant, (n) => setLoan('maxTotalLoanPerParticipant', n))}
+        {num('Repayment rate (% of gross reward)', draft.loanSettings.repaymentRatePercent, (n) => setLoan('repaymentRatePercent', n), 'e.g. 2 → a 100-kori reward repays 2 and credits 98', 0.5)}
+        <Field label="Kori precision">
           <select
             className={inputClass}
             disabled={locked}
             value={draft.loanSettings.repaymentPrecision}
             onChange={(e) => setLoan('repaymentPrecision', e.target.value as Settings['loanSettings']['repaymentPrecision'])}
           >
-            <option value="INTEGER">Integer (round repayment down)</option>
+            <option value="INTEGER">Whole koris (round repayment down)</option>
             <option value="DECIMAL2">2 decimals (exact)</option>
           </select>
         </Field>
         <div className="space-y-3 sm:col-span-2">
           <Toggle
             disabled={locked || draft.loanSettings.repaymentPrecision !== 'INTEGER'}
-            checked={draft.loanSettings.minimumOneTokenDeduction}
-            onChange={(v) => setLoan('minimumOneTokenDeduction', v)}
-            label="Deduct at least 1 token when a borrower wins anything (integer mode)"
+            checked={draft.loanSettings.minimumOneKoriDeduction}
+            onChange={(v) => setLoan('minimumOneKoriDeduction', v)}
+            label="Deduct at least 1 kori when a borrower wins anything (whole-kori mode)"
           />
           <Toggle
             disabled={locked}
             checked={draft.loanSettings.deductUnpaidLoanAtFinale}
             onChange={(v) => setLoan('deductUnpaidLoanAtFinale', v)}
-            label="Deduct unpaid loan from final balance when scores are frozen"
+            label="Deduct unpaid Kori Loan from final koris when scores are frozen"
           />
         </div>
         {num('Default bidding window (seconds)', draft.defaultBiddingSeconds, (n) => set('defaultBiddingSeconds', n), undefined, 15)}
@@ -293,6 +292,57 @@ function SettingsCard() {
           </Button>
         </div>
       )}
+    </Card>
+  );
+}
+
+/** Event title & subtitle — editable at any time, even after the rules lock. */
+function BrandingCard() {
+  const branding = useCompetition((s) => s.data.branding);
+  const lang = useCompetition((s) => s.data.projectorLanguage);
+  const run = useCompetition((s) => s.run);
+  const [draft, setDraft] = useState<Branding>(branding);
+  const [last, setLast] = useState(branding);
+  if (branding !== last) {
+    setLast(branding);
+    setDraft(branding);
+  }
+  const dirty = JSON.stringify(draft) !== JSON.stringify(branding);
+  return (
+    <Card
+      title="Event Branding"
+      icon={<Sparkles size={18} className="text-fuchsia-400" />}
+      actions={
+        <div className="flex items-center gap-2 text-xs">
+          <Languages size={14} className="text-slate-400" />
+          <select className={`${inputClass} w-44 py-1 text-xs`} value={lang} onChange={(e) => run((d) => setProjectorLanguage(d, e.target.value as typeof lang))} aria-label="Projector labels">
+            <option value="BILINGUAL">Projector: বাংলা + English</option>
+            <option value="ENGLISH">Projector: English only</option>
+          </select>
+        </div>
+      }
+    >
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="Title (বাংলা)">
+          <input className={`${inputClass} font-bengali`} value={draft.titleBn} onChange={(e) => setDraft({ ...draft, titleBn: e.target.value })} />
+        </Field>
+        <Field label="Title (English)">
+          <input className={inputClass} value={draft.titleEn} onChange={(e) => setDraft({ ...draft, titleEn: e.target.value })} />
+        </Field>
+        <div className="sm:col-span-2">
+          <Field label="Subtitle">
+            <input className={inputClass} value={draft.subtitle} onChange={(e) => setDraft({ ...draft, subtitle: e.target.value })} />
+          </Field>
+        </div>
+      </div>
+      <div className="mt-4 flex justify-end gap-2">
+        <Button variant="ghost" size="sm" onClick={() => setDraft(defaultBranding())}>
+          Restore official branding
+        </Button>
+        <Button variant="primary" size="sm" disabled={!dirty} onClick={() => run((d) => updateBranding(d, draft), 'Branding updated')}>
+          Save
+        </Button>
+      </div>
     </Card>
   );
 }

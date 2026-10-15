@@ -1,9 +1,11 @@
 import { useMemo, useState } from 'react';
-import { Download, FileClock, HandCoins, Landmark, Search, SlidersHorizontal } from 'lucide-react';
+import { Download, FileClock, Landmark, Search, SlidersHorizontal } from 'lucide-react';
 import type { AuditType } from '../types';
 import { useCompetition, useLedger } from '../store';
 import { addAdjustment, issueLoan, nextLedgerSlot } from '../lib/operations';
 import { auditCsv, downloadFile } from '../lib/exporters';
+import { cue, cueKoriClink } from '../audio/cues';
+import { KoriIcon } from './Kori';
 import { Badge, Button, Card, Field, NumberInput, inputClass, fmt } from './ui';
 
 const AUDIT_TONE: Record<AuditType, 'violet' | 'emerald' | 'amber' | 'sky'> = {
@@ -48,7 +50,7 @@ export function LoanDesk() {
   return (
     <div className="space-y-6">
       <div className="grid gap-6 lg:grid-cols-2">
-        <Card title="Issue Loan" icon={<HandCoins size={18} className="text-violet-400" />}>
+        <Card title="Issue Kori Loan (কড়ি ধার)" icon={<KoriIcon size={18} className="text-amber-400" />}>
           <div className="space-y-4">
             <Field label="Participant">
               <select className={inputClass} value={pid} onChange={(e) => setPid(e.target.value)}>
@@ -67,24 +69,24 @@ export function LoanDesk() {
                     {v}
                   </Button>
                 ))}
-                <NumberInput value={amount} min={1} commitOnChange onCommit={setAmount} className="w-28" ariaLabel="Custom loan amount" />
+                <NumberInput value={amount} min={1} commitOnChange onCommit={setAmount} className="w-28" ariaLabel="Custom Kori Loan amount" />
               </div>
             </Field>
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-slate-950 px-3 py-2 text-sm">
               <span className="text-slate-400">{slot ? `Credited before Event ${slot}'s stakes are locked.` : 'No events remain — loans are closed.'}</span>
-              <Button variant="primary" disabled={!pid || amount <= 0 || amount > headroom || !slot || data.scoresFrozen} onClick={() => run((d) => issueLoan(d, pid, amount), `Loan of ${amount} issued`)}>
+              <Button variant="primary" disabled={!pid || amount <= 0 || amount > headroom || !slot || data.scoresFrozen} onClick={() => run((d) => issueLoan(d, pid, amount), `Kori Loan of ${amount} koris issued`) && (cueKoriClink(), cue('LOAN_ISSUED'))}>
                 Issue Loan
               </Button>
             </div>
             <p className="text-xs text-slate-500">
-              Repayment: {loanSettings.repaymentRatePercent}% of every gross reward ({loanSettings.repaymentPrecision === 'INTEGER' ? 'whole tokens, rounded down' : '2 decimals'}
-              {loanSettings.repaymentPrecision === 'INTEGER' && loanSettings.minimumOneTokenDeduction ? ', minimum 1 token' : ''}) is deducted automatically until the loan is repaid.
+              Repayment: {loanSettings.repaymentRatePercent}% of every gross reward ({loanSettings.repaymentPrecision === 'INTEGER' ? 'whole koris, rounded down' : '2 decimals'}
+              {loanSettings.repaymentPrecision === 'INTEGER' && loanSettings.minimumOneKoriDeduction ? ', minimum 1 kori' : ''}) is deducted automatically until the loan is repaid.
               {loanSettings.deductUnpaidLoanAtFinale ? ' Unpaid principal is subtracted from final balances when scores are frozen.' : ' Unpaid principal counts only as tie-breaker #2.'}
             </p>
           </div>
         </Card>
 
-        <Card title="Manual Balance Adjustment" icon={<SlidersHorizontal size={18} className="text-sky-400" />}>
+        <Card title="Manual Kori Adjustment" icon={<SlidersHorizontal size={18} className="text-sky-400" />}>
           <div className="space-y-4">
             <Field label="Participant">
               <select className={inputClass} value={adjPid} onChange={(e) => setAdjPid(e.target.value)}>
@@ -121,7 +123,7 @@ export function LoanDesk() {
       </div>
 
       <Card
-        title="Loan Book"
+        title="Kori Loan Book"
         icon={<Landmark size={18} className="text-amber-400" />}
         actions={
           <div className="flex gap-3 text-xs">

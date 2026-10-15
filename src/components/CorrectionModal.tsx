@@ -148,7 +148,7 @@ export function CorrectionModal({ event, open, onClose }: { event: EventRound; o
         {preview.error ? (
           <p className="text-rose-300">{preview.error}</p>
         ) : preview.diffs.length === 0 ? (
-          <p className="text-slate-500">No balance or rank changes.</p>
+          <p className="text-slate-500">No kori or rank changes.</p>
         ) : (
           <ul className="grid gap-1 sm:grid-cols-2">
             {preview.diffs.map(({ p, before }) => (

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { CalendarCheck, Crown, Gavel, ListOrdered, Landmark, MonitorPlay, Presentation, Users } from 'lucide-react';
+import { CalendarCheck, Disc3, Gavel, Languages, ListOrdered, Landmark, MonitorPlay, Presentation, Users } from 'lucide-react';
 import { useCompetition } from '../store';
 import { EventOperations } from './EventOperations';
 import { LeaderboardView } from './LeaderboardView';
@@ -7,13 +7,20 @@ import { LoanDesk } from './LoanDesk';
 import { ParticipantsSettings } from './ParticipantsSettings';
 import { ProjectorView } from './ProjectorView';
 import { DataTools } from './DataTools';
+import { KoriIcon } from './Kori';
+import { SoundboardView } from './Soundboard';
+import { MiniSoundbar } from './MiniSoundbar';
+import { useAudioEngine, useAudioHotkeys, useCountdownCues } from '../audio/cues';
+import { brandTitle } from '../lib/branding';
+import { setProjectorLanguage } from '../lib/operations';
 import { Button, STATUS_LABEL } from './ui';
 
-type Tab = 'operations' | 'leaderboard' | 'loans' | 'setup';
+type Tab = 'operations' | 'leaderboard' | 'loans' | 'dj' | 'setup';
 const TABS: { id: Tab; label: string; icon: typeof Gavel }[] = [
   { id: 'operations', label: 'Event Operations', icon: Gavel },
   { id: 'leaderboard', label: 'Leaderboard & Master Table', icon: ListOrdered },
-  { id: 'loans', label: 'Loan Desk & Audit Log', icon: Landmark },
+  { id: 'loans', label: 'Kori Loan Desk & Audit Log', icon: Landmark },
+  { id: 'dj', label: 'DJ & Soundboard', icon: Disc3 },
   { id: 'setup', label: 'Participants & Settings', icon: Users },
 ];
 const TAB_KEY = 'wac:admin-tab';
@@ -30,6 +37,7 @@ function initialTab(): Tab {
 
 export function AdminApp() {
   const data = useCompetition((s) => s.data);
+  const run = useCompetition((s) => s.run);
   const [tab, setTab] = useState<Tab>(initialTab);
   const [selected, setSelected] = useState(data.currentEventNumber);
   const [presenting, setPresenting] = useState(false);
@@ -51,8 +59,13 @@ export function AdminApp() {
   }, [tab]);
 
   useEffect(() => {
-    document.title = `${data.settings.eventName} — Control Center`;
-  }, [data.settings.eventName]);
+    document.title = `${brandTitle(data.branding)} — Control Center`;
+  }, [data.branding]);
+
+  // Audio lives in the admin window only (the projector never plays sound).
+  useAudioEngine();
+  useAudioHotkeys();
+  useCountdownCues();
 
   const current = data.events.find((e) => e.eventNumber === data.currentEventNumber) ?? data.events[0];
 
@@ -74,14 +87,19 @@ export function AdminApp() {
   return (
     <div className="min-h-screen">
       <header className="sticky top-0 z-30 border-b border-slate-800 bg-slate-950/90 backdrop-blur">
+        <div className="festive-strip" aria-hidden />
         <div className="mx-auto flex max-w-[1600px] flex-wrap items-center gap-4 px-4 py-3 lg:px-6">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 to-fuchsia-600 shadow-lg">
-              <Crown size={20} className="text-amber-300" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-violet-800 to-fuchsia-600 shadow-lg ring-1 ring-amber-400/40">
+              <KoriIcon size={24} filled className="text-amber-950" />
             </div>
             <div>
-              <h1 className="text-lg font-extrabold leading-tight">{data.settings.eventName}</h1>
-              <p className="text-xs text-slate-400">Admin Control Center</p>
+              <h1 className="text-lg font-extrabold leading-tight">
+                {data.branding.titleBn && <span className="font-bengali">{data.branding.titleBn}</span>}
+                {data.branding.titleBn && data.branding.titleEn ? ' ' : ''}
+                {data.branding.titleEn && <span className={data.branding.titleBn ? 'text-slate-300' : ''}>{data.branding.titleBn ? `(${data.branding.titleEn})` : data.branding.titleEn}</span>}
+              </h1>
+              <p className="text-xs text-slate-400">{data.branding.subtitle || 'Admin Control Center'}</p>
             </div>
           </div>
 
@@ -108,6 +126,16 @@ export function AdminApp() {
           </button>
 
           <div className="ml-auto flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => run((d) => setProjectorLanguage(d, d.projectorLanguage === 'BILINGUAL' ? 'ENGLISH' : 'BILINGUAL'))}
+              title="Projector labels"
+              className="flex items-center gap-1 rounded-lg border border-slate-700 bg-slate-900 p-0.5 text-xs font-semibold"
+            >
+              <Languages size={14} className="mx-1 text-slate-400" />
+              <span className={`rounded-md px-2 py-1 ${data.projectorLanguage === 'BILINGUAL' ? 'bg-violet-600 text-white' : 'text-slate-400'}`}>বাংলা + EN</span>
+              <span className={`rounded-md px-2 py-1 ${data.projectorLanguage === 'ENGLISH' ? 'bg-violet-600 text-white' : 'text-slate-400'}`}>EN</span>
+            </button>
             <Button size="sm" variant="primary" onClick={launchProjector}>
               <MonitorPlay size={14} /> Launch Projector View
             </Button>
@@ -137,10 +165,16 @@ export function AdminApp() {
         </nav>
       </header>
 
-      <main className="mx-auto max-w-[1600px] px-4 py-6 lg:px-6">
-        {tab === 'operations' && <EventOperations selected={selected} onSelect={setSelected} />}
+      <main className="mx-auto max-w-[1600px] px-4 pb-24 pt-6 lg:px-6">
+        {tab === 'operations' && (
+          <>
+            <EventOperations selected={selected} onSelect={setSelected} />
+            <MiniSoundbar />
+          </>
+        )}
         {tab === 'leaderboard' && <LeaderboardView />}
         {tab === 'loans' && <LoanDesk />}
+        {tab === 'dj' && <SoundboardView />}
         {tab === 'setup' && <ParticipantsSettings />}
       </main>
     </div>

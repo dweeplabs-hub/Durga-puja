@@ -1,7 +1,9 @@
 import { Crown, Medal } from 'lucide-react';
-import type { Participant } from '../types';
+import type { Participant, ProjectorLanguage } from '../types';
+import { PROJECTOR_TEXT, type TextKey } from '../lib/i18n';
 import { TIER_LABEL } from '../lib/engine';
 import { Badge, fmt } from './ui';
+import { Kori } from './Kori';
 
 interface Props {
   ranked: Participant[];
@@ -10,6 +12,8 @@ interface Props {
   /** Optional extra column: stake currently locked in the active event. */
   activeStakes?: Record<string, number> | null;
   activeEventNumber?: number;
+  /** Projector only: show Bengali + English column headers. */
+  language?: ProjectorLanguage;
 }
 
 function RankCell({ rank, variant }: { rank: number; variant: Props['variant'] }) {
@@ -26,8 +30,21 @@ export function TieBadge({ p }: { p: Participant }) {
   return <Badge tone="violet">Tie → {TIER_LABEL[p.tieBreakTier]}</Badge>;
 }
 
-export function LeaderboardTable({ ranked, showLoans, variant, activeStakes, activeEventNumber }: Props) {
+export function LeaderboardTable({ ranked, showLoans, variant, activeStakes, activeEventNumber, language = 'ENGLISH' }: Props) {
   const proj = variant === 'projector';
+  const bi = proj && language === 'BILINGUAL';
+  const h = (key: TextKey, suffix = '') =>
+    bi ? (
+      <>
+        <span className="block normal-case tracking-normal">{PROJECTOR_TEXT[key].bn}</span>
+        <span className="block text-[0.7em] opacity-70">
+          {PROJECTOR_TEXT[key].en}
+          {suffix}
+        </span>
+      </>
+    ) : (
+      `${PROJECTOR_TEXT[key].en}${suffix}`
+    );
   const th = proj ? 'px-3 py-3 text-sm lg:text-base' : 'px-3 py-2 text-xs';
   const td = proj ? 'px-3 py-2.5 text-lg lg:text-2xl' : 'px-3 py-2 text-sm';
   const rowTone = (rank: number) =>
@@ -38,17 +55,17 @@ export function LeaderboardTable({ ranked, showLoans, variant, activeStakes, act
       <table className="w-full border-separate border-spacing-0">
         <thead>
           <tr className={`text-left uppercase tracking-wide ${proj ? 'text-violet-200/80' : 'text-slate-400'}`}>
-            <th className={th}>Rank</th>
-            <th className={th}>ID</th>
-            <th className={th}>Name</th>
-            <th className={`${th} text-right`}>Start</th>
-            <th className={`${th} text-right`}>Balance</th>
-            <th className={`${th} text-right`}>Staked</th>
-            <th className={`${th} text-right`}>Rewards</th>
-            {showLoans && <th className={`${th} text-right`}>Loan Due</th>}
-            {showLoans && <th className={`${th} text-right`}>Repaid</th>}
-            <th className={`${th} text-right`}>Events</th>
-            {activeStakes && <th className={`${th} text-right text-sky-300`}>At Stake (E{activeEventNumber})</th>}
+            <th className={th}>{h('rank')}</th>
+            <th className={th}>{h('id')}</th>
+            <th className={th}>{h('name')}</th>
+            <th className={`${th} text-right`}>{h('start')}</th>
+            <th className={`${th} text-right`}>{h('balance')}</th>
+            <th className={`${th} text-right`}>{h('staked')}</th>
+            <th className={`${th} text-right`}>{h('rewards')}</th>
+            {showLoans && <th className={`${th} text-right`}>{h('loanDue')}</th>}
+            {showLoans && <th className={`${th} text-right`}>{h('repaid')}</th>}
+            <th className={`${th} text-right`}>{h('events')}</th>
+            {activeStakes && <th className={`${th} text-right text-sky-300`}>{h('atStake', ` (E${activeEventNumber})`)}</th>}
             {!proj && <th className={`${th} text-right`}>Perf.</th>}
             {!proj && <th className={th}>Tie-break</th>}
           </tr>
@@ -68,15 +85,21 @@ export function LeaderboardTable({ ranked, showLoans, variant, activeStakes, act
               </td>
               <td className={`${td} border-t border-slate-800/70 text-right text-slate-400`}>{fmt(p.startingBalance)}</td>
               <td className={`${td} border-t border-slate-800/70 text-right font-bold ${proj ? 'text-amber-200' : 'text-white'}`}>
-                {fmt(p.currentBalance)}
+                <Kori n={p.currentBalance} size={proj ? 22 : 14} />
                 {p.rankingBalance !== p.currentBalance && <span className="block text-xs font-normal text-slate-400">net {fmt(p.rankingBalance)}</span>}
               </td>
-              <td className={`${td} border-t border-slate-800/70 text-right text-slate-300`}>{fmt(p.totalTokensStaked)}</td>
+              <td className={`${td} border-t border-slate-800/70 text-right text-slate-300`}>
+                <Kori n={p.totalKorisStaked} size={proj ? 18 : 12} iconClassName="text-amber-500/60" />
+              </td>
               <td className={`${td} border-t border-slate-800/70 text-right text-emerald-300`}>{fmt(p.totalRewardsEarned)}</td>
               {showLoans && <td className={`${td} border-t border-slate-800/70 text-right ${p.outstandingLoan > 0 ? 'text-rose-300' : 'text-slate-500'}`}>{fmt(p.outstandingLoan)}</td>}
               {showLoans && <td className={`${td} border-t border-slate-800/70 text-right text-slate-400`}>{fmt(p.totalLoanRepaid)}</td>}
               <td className={`${td} border-t border-slate-800/70 text-right text-slate-300`}>{p.eventsParticipated}</td>
-              {activeStakes && <td className={`${td} border-t border-slate-800/70 text-right text-sky-300`}>{fmt(activeStakes[p.id] ?? 0)}</td>}
+              {activeStakes && (
+                <td className={`${td} border-t border-slate-800/70 text-right text-sky-300`}>
+                  <Kori n={activeStakes[p.id] ?? 0} size={proj ? 20 : 12} iconClassName="text-sky-300" />
+                </td>
+              )}
               {!proj && <td className={`${td} border-t border-slate-800/70 text-right text-violet-300`}>{p.performanceScore}</td>}
               {!proj && (
                 <td className={`${td} border-t border-slate-800/70`}>

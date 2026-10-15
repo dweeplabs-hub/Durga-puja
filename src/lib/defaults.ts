@@ -1,4 +1,4 @@
-import type { CompetitionData, EventRound, ParticipantBase, Settings } from '../types';
+import type { AudioConfig, AudioSlotConfig, Branding, CompetitionData, EventRound, ParticipantBase, Settings, VoiceSlotId } from '../types';
 
 export const DEFAULT_EVENT_TITLES = [
   'Precision Challenge',
@@ -15,7 +15,6 @@ export const DEFAULT_EVENT_TITLES = [
 
 export function defaultSettings(): Settings {
   return {
-    eventName: 'Mojar Mohajuddho',
     totalEvents: 10,
     startingBalance: 100,
     minStakePerEvent: 0,
@@ -27,11 +26,83 @@ export function defaultSettings(): Settings {
       maxTotalLoanPerParticipant: 100,
       repaymentRatePercent: 2,
       repaymentPrecision: 'INTEGER',
-      minimumOneTokenDeduction: false,
+      minimumOneKoriDeduction: false,
       deductUnpaidLoanAtFinale: false,
     },
     defaultBiddingSeconds: 120,
   };
+}
+
+export function defaultBranding(): Branding {
+  return {
+    titleBn: 'মজার মহাযুদ্ধ',
+    titleEn: 'Mojar Mohajuddho',
+    subtitle: "Women's Auction Challenge – Live Bidding & Scoring Arena",
+  };
+}
+
+/** The 7 built-in Bengali announcement slots, in hotkey order (Alt+1 … Alt+7). */
+export const VOICE_SLOT_DEFS: { id: VoiceSlotId; labelBn: string; labelEn: string; autoTrigger: boolean; trigger: string }[] = [
+  { id: 'MAIN_INTRO', labelBn: 'মূল ঘোষণা', labelEn: 'Grand Intro & Rules', autoTrigger: false, trigger: 'Manual — play from the Welcome screen (Event 1, Step A)' },
+  { id: 'BIDDING_OPEN', labelBn: 'বিডিং শুরু', labelEn: 'Bidding Open', autoTrigger: true, trigger: 'When “Open Bidding” is clicked' },
+  { id: 'THIRTY_SEC_LEFT', labelBn: '৩০ সেকেন্ড বাকি', labelEn: '30-Second Warning', autoTrigger: true, trigger: 'When the bidding countdown hits 00:30' },
+  { id: 'BIDDING_CLOSED', labelBn: 'বিডিং বন্ধ', labelEn: 'Bidding Locked', autoTrigger: true, trigger: 'When stakes are locked, or the countdown reaches 00:00' },
+  { id: 'LEADERBOARD_REVEAL', labelBn: 'ফলাফল ও লিডারবোর্ড', labelEn: 'Results & Leaderboard', autoTrigger: true, trigger: 'When “Publish Results & Update Leaderboard” is clicked' },
+  { id: 'LOAN_ISSUED', labelBn: 'কড়ি ধার', labelEn: 'Kori Loan Granted', autoTrigger: false, trigger: 'When a participant receives a Kori loan (optional)' },
+  { id: 'CHAMPION_CROWNED', labelBn: 'চ্যাম্পিয়ন ঘোষণা', labelEn: 'Champion Reveal', autoTrigger: true, trigger: 'When final scores are frozen and the podium is revealed' },
+];
+
+export function defaultAudioConfig(): AudioConfig {
+  const slots: AudioSlotConfig[] = VOICE_SLOT_DEFS.map((d, i) => ({
+    id: d.id,
+    labelBn: d.labelBn,
+    labelEn: d.labelEn,
+    hotkey: i + 1,
+    autoTrigger: d.autoTrigger,
+    mode: 'MP3',
+    volume: 1,
+    loop: false,
+    custom: false,
+    script: '',
+  }));
+  return {
+    masterVolume: 0.9,
+    bgmVolume: 0.5,
+    sfxVolume: 0.8,
+    bgmLoop: true,
+    bgmSource: 'FILE',
+    duckingEnabled: true,
+    koriClinkFx: true,
+    autoTriggerMaster: true,
+    countdownTicks: true,
+    slots,
+    sfxLabels: { KORI: 'Kori Clink', BELL: 'Temple Bell', TICK: 'Countdown Tick', AIRHORN: 'Airhorn', DRUMROLL: 'Drumroll', FANFARE: 'Victory Fanfare' },
+  };
+}
+
+const LEGACY_SLOT_LABELS: Record<string, string[]> = { LOAN_ISSUED: ['Token Loan Granted', 'টোকেন লোন'] };
+
+/** Fills any missing audio fields (older saves / imported backups) with defaults, keeping custom slots. */
+export function normaliseAudioConfig(raw: Partial<AudioConfig> | undefined): AudioConfig {
+  const base = defaultAudioConfig();
+  if (!raw) return base;
+  const saved = Array.isArray(raw.slots) ? raw.slots : [];
+  const builtIn = base.slots.map((b) => {
+    const s = saved.find((x) => x.id === b.id);
+    const merged = { ...b, ...s, custom: false };
+    // Labels still on an old default follow the new default (e.g. "Token Loan" → "Kori Loan").
+    if (s && LEGACY_SLOT_LABELS[b.id]?.includes(s.labelEn)) merged.labelEn = b.labelEn;
+    if (s && LEGACY_SLOT_LABELS[b.id]?.includes(s.labelBn)) merged.labelBn = b.labelBn;
+    return merged;
+  });
+  const custom = saved.filter((s) => s.custom && !builtIn.some((b) => b.id === s.id)).map((s) => ({ ...base.slots[0], ...s, custom: true }));
+  // v3 had a generic "COIN" pad; it is now the Kori clink.
+  const { COIN: _legacyCoin, ...savedLabels } = (raw.sfxLabels ?? {}) as Partial<Record<string, string>>;
+  void _legacyCoin;
+  const sfxLabels = { ...base.sfxLabels };
+  for (const k of Object.keys(sfxLabels) as (keyof typeof sfxLabels)[]) if (savedLabels[k]) sfxLabels[k] = savedLabels[k]!;
+  const bgmSource = raw.bgmSource === 'DHAK' || raw.bgmSource === 'CHIMES' ? raw.bgmSource : 'FILE';
+  return { ...base, ...raw, bgmSource, sfxLabels, slots: [...builtIn, ...custom] };
 }
 
 export function makeEvent(eventNumber: number, settings: Settings): EventRound {
@@ -56,6 +127,9 @@ export function makeEvent(eventNumber: number, settings: Settings): EventRound {
 export function emptyCompetition(settings: Settings = defaultSettings()): CompetitionData {
   return {
     version: 1,
+    branding: defaultBranding(),
+    projectorLanguage: 'BILINGUAL',
+    audio: defaultAudioConfig(),
     settings,
     rulesLocked: false,
     participants: [],

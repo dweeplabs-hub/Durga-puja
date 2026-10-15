@@ -38,7 +38,7 @@ describe('loan repayment', () => {
     const s = defaultSettings().loanSettings;
     expect(computeLoanRepayment(200, 1, s)).toBe(1);
     expect(computeLoanRepayment(30, 20, s)).toBe(0);
-    expect(computeLoanRepayment(30, 20, { ...s, minimumOneTokenDeduction: true })).toBe(1);
+    expect(computeLoanRepayment(30, 20, { ...s, minimumOneKoriDeduction: true })).toBe(1);
     expect(computeLoanRepayment(30, 20, { ...s, repaymentPrecision: 'DECIMAL2' })).toBe(0.6);
     expect(computeLoanRepayment(100, 0, s)).toBe(0);
   });
@@ -89,7 +89,7 @@ describe('round payouts & ledger recalculation', () => {
     expect(byName(d, 'Bina').currentBalance).toBe(100 - 20 + 60);
     expect(byName(d, 'Chitra').currentBalance).toBe(100 - 30 + 60);
     expect(byName(d, 'Dia').currentBalance).toBe(50);
-    expect(byName(d, 'Dia').totalTokensStaked).toBe(50);
+    expect(byName(d, 'Dia').totalKorisStaked).toBe(50);
     expect(byName(d, 'Dia').eventsParticipated).toBe(1);
   });
 
@@ -136,9 +136,9 @@ describe('round payouts & ledger recalculation', () => {
 describe('bidding rules', () => {
   it('enforces max stake cap and available balance, allows zero-balance entry', () => {
     const s = { ...defaultSettings(), minStakePerEvent: 5 };
-    expect(validateBid(60, 100, s)).toMatch(/Max stake/);
-    expect(validateBid(30, 20, s)).toMatch(/available/);
-    expect(validateBid(0, 100, s)).toMatch(/Min stake/);
+    expect(validateBid(60, 100, s)).toMatch(/Max Kori Stake/);
+    expect(validateBid(30, 20, s)).toMatch(/koris available/);
+    expect(validateBid(0, 100, s)).toMatch(/Min Kori Stake/);
     expect(validateBid(0, 0, s)).toBeNull();
     expect(validateBid(3, 3, s)).toBeNull();
     expect(validateBid(25, 100, s)).toBeNull();
@@ -191,5 +191,77 @@ describe('demo & backup', () => {
     expect(d.currentEventNumber).toBe(4);
     const restored = parseBackup(JSON.parse(JSON.stringify(d)));
     expect(computeLedger(restored).ranked.map((p) => p.id)).toEqual(computeLedger(d).ranked.map((p) => p.id));
+  });
+});
+
+describe('branding & audio config', () => {
+  it('migrates an older backup: name moves into branding, audio defaults are filled', async () => {
+    const { parseBackup: parse, addCustomAudioSlot, updateAudioSlot, removeCustomAudioSlot } = await import('./operations');
+    const legacy = JSON.parse(JSON.stringify(setup())) as Record<string, unknown>;
+    delete legacy.branding;
+    delete legacy.audio;
+    delete legacy.projectorLanguage;
+    (legacy.settings as Record<string, unknown>).eventName = 'Mojar Mohajuddho';
+    const d = parse(legacy);
+    expect(d.branding.titleBn).toBe('মজার মহাযুদ্ধ');
+    expect(d.branding.titleEn).toBe('Mojar Mohajuddho');
+    expect('eventName' in d.settings).toBe(false);
+    expect(d.projectorLanguage).toBe('BILINGUAL');
+    expect(d.audio.slots.map((s) => s.id)).toEqual([
+      'MAIN_INTRO',
+      'BIDDING_OPEN',
+      'THIRTY_SEC_LEFT',
+      'BIDDING_CLOSED',
+      'LEADERBOARD_REVEAL',
+      'LOAN_ISSUED',
+      'CHAMPION_CROWNED',
+    ]);
+    expect(d.audio.slots.map((s) => s.hotkey)).toEqual([1, 2, 3, 4, 5, 6, 7]);
+
+    // Custom pads take the next free hotkey, hotkeys stay unique, built-ins can't be removed.
+    let e = addCustomAudioSlot(d, 'Sponsor', 'স্পনসর');
+    const custom = e.audio.slots.at(-1)!;
+    expect(custom.hotkey).toBe(8);
+    expect(() => updateAudioSlot(e, custom.id, { hotkey: 1 })).toThrow(/already assigned/);
+    expect(() => removeCustomAudioSlot(e, 'MAIN_INTRO')).toThrow(OpError);
+    e = removeCustomAudioSlot(e, custom.id);
+    expect(e.audio.slots).toHaveLength(7);
+    // Custom pads round-trip through a backup.
+    const withPad = addCustomAudioSlot(d, 'Sponsor');
+    expect(parse(JSON.parse(JSON.stringify(withPad))).audio.slots).toHaveLength(8);
+  });
+});
+
+describe('Kori theme migration', () => {
+  it('a token-era backup loads with identical rankings, balances and loan math', async () => {
+    const { parseBackup: parse, buildDemo: demo } = await import('./operations');
+    const { computeLedger: ledgerOf } = await import('./engine');
+    // A played competition with loans, using the min-1 deduction rule so the renamed flag matters.
+    const modern = demo(6);
+    modern.settings.loanSettings.minimumOneKoriDeduction = true;
+
+    // Re-shape it the way a pre-Kori save looked.
+    const legacy = JSON.parse(JSON.stringify(modern));
+    const ls = legacy.settings.loanSettings;
+    ls.minimumOneTokenDeduction = ls.minimumOneKoriDeduction;
+    delete ls.minimumOneKoriDeduction;
+    legacy.audio.sfxLabels = { COIN: 'Coin', TICK: 'Countdown Tick', AIRHORN: 'Airhorn', DRUMROLL: 'Drumroll', FANFARE: 'Victory Fanfare' };
+    legacy.audio.slots.find((s: { id: string }) => s.id === 'LOAN_ISSUED').labelEn = 'Token Loan Granted';
+    delete legacy.audio.bgmSource;
+    delete legacy.audio.koriClinkFx;
+
+    const migrated = parse(legacy);
+    expect(migrated.settings.loanSettings.minimumOneKoriDeduction).toBe(true);
+    expect('minimumOneTokenDeduction' in migrated.settings.loanSettings).toBe(false);
+    expect(migrated.audio.sfxLabels.KORI).toBe('Kori Clink');
+    expect('COIN' in migrated.audio.sfxLabels).toBe(false);
+    expect(migrated.audio.slots.find((s) => s.id === 'LOAN_ISSUED')!.labelEn).toBe('Kori Loan Granted');
+    expect(migrated.audio.bgmSource).toBe('FILE');
+    expect(migrated.audio.koriClinkFx).toBe(true);
+
+    const pick = (d: CompetitionData) =>
+      computeLedger(d).ranked.map((p) => [p.id, p.currentRank, p.currentBalance, p.totalKorisStaked, p.outstandingLoan, p.totalLoanRepaid, p.totalRewardsEarned]);
+    expect(pick(migrated)).toEqual(pick(modern));
+    expect(ledgerOf(migrated).ranked.some((p) => p.totalLoanRepaid > 0 || p.outstandingLoan > 0)).toBe(true);
   });
 });
