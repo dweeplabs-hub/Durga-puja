@@ -17,19 +17,19 @@ export const VOICE_SCRIPTS: Record<VoiceSlotId, VoiceScript> = {
 
 আজ আমাদের মঞ্চে নারীদের নিলাম প্রতিযোগিতা, যেখানে লাগবে বুদ্ধি, সাহস, আর একটু ভাগ্য। নিয়মগুলো মন দিয়ে শুনুন।
 
-প্রত্যেক প্রতিযোগী শুরু করবেন একশো টোকেন নিয়ে। মোট দশটি খেলা হবে। প্রতিটি খেলার আগে আপনি ঠিক করবেন কত টোকেন বাজি রাখবেন — সর্বোচ্চ পঞ্চাশ টোকেন।
+প্রত্যেক প্রতিযোগী শুরু করবেন একশো খেলার কড়ি নিয়ে। মোট দশটি খেলা হবে। প্রতিটি খেলার আগে আপনি ঠিক করবেন কত কড়ি বাজি রাখবেন — সর্বোচ্চ পঞ্চাশ কড়ি।
 
-খেলায় প্রথম হলে বাজির চার গুণ টোকেন ফেরত, দ্বিতীয় হলে তিন গুণ, আর তৃতীয় হলে দুই গুণ! বাকিদের বাজি রাখা টোকেন — চলে যাবে মহাযুদ্ধের খাতায়!
+খেলায় প্রথম হলে বাজির চার গুণ কড়ি ফেরত, দ্বিতীয় হলে তিন গুণ, আর তৃতীয় হলে দুই গুণ! বাকিদের বাজি রাখা কড়ি — চলে যাবে মহাযুদ্ধের খাতায়!
 
-টোকেন ফুরিয়ে গেলেও চিন্তা নেই — টোকেন লোন পাওয়া যাবে। আর জিতলেই প্রতিবার পুরস্কারের দুই শতাংশ কেটে নিয়ে লোন শোধ হয়ে যাবে।
+কড়ি ফুরিয়ে গেলেও চিন্তা নেই — কড়ি ধার পাওয়া যাবে। আর জিতলেই প্রতিবার পুরস্কারের দুই শতাংশ কেটে নিয়ে ধার শোধ হয়ে যাবে।
 
-দশটি খেলার শেষে যাঁর কাছে সবচেয়ে বেশি টোকেন থাকবে, তিনিই হবেন আজকের চ্যাম্পিয়ন!
+দশটি খেলার শেষে যাঁর কাছে সবচেয়ে বেশি কড়ি থাকবে, তিনিই হবেন আজকের চ্যাম্পিয়ন!
 
 তাহলে আর দেরি কেন? সবাই তৈরি তো? জোরে হাততালি দিয়ে শুরু হোক — মজার মহাযুদ্ধ!`,
   },
   BIDDING_OPEN: {
     direction: `${VOICE}. Upbeat and urgent, about 8–10 seconds.`,
-    text: `মনোযোগ দিন সবাই! বিডিং এখন শুরু! আপনার টোকেন গুনে নিন, আর সাহস করে বাজি ধরুন। কত টোকেন রাখবেন — সিদ্ধান্ত আপনার! ঘড়ি কিন্তু চলছে!`,
+    text: `মনোযোগ দিন সবাই! বিডিং এখন শুরু! আপনার কড়ি গুনে নিন, আর সাহস করে বাজি ধরুন। কত কড়ি রাখবেন — সিদ্ধান্ত আপনার! ঘড়ি কিন্তু চলছে!`,
   },
   THIRTY_SEC_LEFT: {
     direction: `${VOICE}. Tense, fast-paced warning, about 4–5 seconds.`,
@@ -45,7 +45,7 @@ export const VOICE_SCRIPTS: Record<VoiceSlotId, VoiceScript> = {
   },
   LOAN_ISSUED: {
     direction: `${VOICE}. Light and encouraging, about 4–5 seconds.`,
-    text: `টোকেন লোন মঞ্জুর! লড়াই এখনো শেষ হয়নি — নতুন টোকেন নিয়ে আবার ময়দানে নামুন!`,
+    text: `কড়ি ধার মঞ্জুর! লড়াই এখনো শেষ হয়নি — নতুন কড়ি নিয়ে আবার ময়দানে নামুন!`,
   },
   CHAMPION_CROWNED: {
     direction: `${VOICE}. Slow build-up with dramatic pauses at each "…", then a big celebratory finish, about 20–25 seconds.`,
@@ -59,12 +59,13 @@ export const VOICE_SCRIPTS: Record<VoiceSlotId, VoiceScript> = {
 
 /** Built-in synth effects used when a slot has no uploaded file (or in Synth / Both modes). */
 export const SLOT_SYNTH: Record<VoiceSlotId, SfxId[]> = {
-  MAIN_INTRO: ['FANFARE'],
-  BIDDING_OPEN: ['COIN', 'FANFARE'],
+  MAIN_INTRO: ['BELL', 'FANFARE'],
+  BIDDING_OPEN: ['BELL', 'FANFARE'],
   THIRTY_SEC_LEFT: ['TICK', 'TICK', 'TICK'],
-  BIDDING_CLOSED: ['COIN', 'AIRHORN'],
+  // The Kori clink for stake lock / loans / rewards plays separately (Kori clink FX switch).
+  BIDDING_CLOSED: ['AIRHORN'],
   LEADERBOARD_REVEAL: ['FANFARE'],
-  LOAN_ISSUED: ['COIN'],
+  LOAN_ISSUED: ['BELL'],
   CHAMPION_CROWNED: ['DRUMROLL', 'FANFARE'],
 };
 

@@ -16,15 +16,15 @@ export function round2(n: number): number {
   return Math.round((n + Number.EPSILON) * 100) / 100;
 }
 
-/** Normalise a token amount to the configured precision. */
-export function normaliseTokens(n: number, settings: Settings): number {
+/** Normalise a kori amount to the configured precision. */
+export function normaliseKoris(n: number, settings: Settings): number {
   return settings.loanSettings.repaymentPrecision === 'INTEGER' ? Math.round(n) : round2(n);
 }
 
 /**
  * Automatic loan repayment deducted from a gross event reward.
  *
- * INTEGER mode: floor(gross * rate%), optionally at least 1 token when gross > 0.
+ * INTEGER mode: floor(gross * rate%), optionally at least 1 kori when gross > 0.
  * DECIMAL2 mode: gross * rate% rounded to 2 decimals.
  * The result is always capped at the outstanding loan principal.
  */
@@ -34,7 +34,7 @@ export function computeLoanRepayment(grossReward: number, outstandingLoan: numbe
   let deduction: number;
   if (loan.repaymentPrecision === 'INTEGER') {
     deduction = Math.floor(raw + 1e-9);
-    if (deduction === 0 && raw > 0 && loan.minimumOneTokenDeduction) deduction = 1;
+    if (deduction === 0 && raw > 0 && loan.minimumOneKoriDeduction) deduction = 1;
   } else {
     deduction = round2(raw);
   }
@@ -93,7 +93,7 @@ export interface LedgerOptions {
  */
 export function computeLedger(data: CompetitionData, options: LedgerOptions = {}): LedgerResult {
   const { settings } = data;
-  const prec = (n: number) => normaliseTokens(n, settings);
+  const prec = (n: number) => normaliseKoris(n, settings);
   const warnings: LedgerWarning[] = [];
   const accs = new Map<string, Acc>();
   for (const p of data.participants) {
@@ -138,7 +138,7 @@ export function computeLedger(data: CompetitionData, options: LedgerOptions = {}
         acc.balance = prec(acc.balance + op.amount);
         acc.adjustments = prec(acc.adjustments + op.amount);
         if (acc.balance < 0) {
-          warnings.push({ eventNumber: op.at, participantId: op.participantId, message: 'Manual adjustment drove balance below zero; clamped to 0.' });
+          warnings.push({ eventNumber: op.at, participantId: op.participantId, message: 'Manual adjustment drove koris below zero; clamped to 0.' });
           acc.balance = 0;
         }
       }
@@ -174,7 +174,7 @@ export function computeLedger(data: CompetitionData, options: LedgerOptions = {}
         warnings.push({
           eventNumber: event.eventNumber,
           participantId: p.id,
-          message: `Recorded stake ${bid} exceeds available balance ${balanceBefore}; stake clamped to ${stake}.`,
+          message: `Recorded stake of ${bid} koris exceeds the ${balanceBefore} koris available; stake clamped to ${stake}.`,
         });
       }
       stake = prec(stake);
@@ -223,7 +223,7 @@ export function computeLedger(data: CompetitionData, options: LedgerOptions = {}
     return {
       ...p,
       currentBalance: acc.balance,
-      totalTokensStaked: acc.staked,
+      totalKorisStaked: acc.staked,
       totalRewardsEarned: acc.rewards,
       outstandingLoan: acc.loan,
       totalLoanRepaid: acc.repaid,
@@ -326,8 +326,8 @@ export function automaticTieGroups(ranked: Participant[]): Participant[][] {
 
 export const TIER_LABEL: Record<TieBreakTier, string> = {
   NONE: '—',
-  BALANCE: 'Balance',
-  LOAN: 'Lower loan',
+  BALANCE: 'Koris',
+  LOAN: 'Lower Kori Loan',
   PERFORMANCE: 'Performance',
   REWARDS: 'Total rewards',
   MANUAL: 'Tie-break challenge',
@@ -342,10 +342,10 @@ export function maxStakeFor(balance: number, settings: Settings): number {
 /** Validates a bid; returns an error message or null. */
 export function validateBid(bid: number, balance: number, settings: Settings): string | null {
   if (!Number.isFinite(bid) || bid < 0) return 'Stake must be a non-negative number';
-  if (settings.loanSettings.repaymentPrecision === 'INTEGER' && !Number.isInteger(bid)) return 'Whole tokens only';
+  if (settings.loanSettings.repaymentPrecision === 'INTEGER' && !Number.isInteger(bid)) return 'Whole koris only';
   const cap = maxStakeFor(balance, settings);
-  if (bid > cap) return bid > settings.maxStakePerEvent ? `Max stake is ${settings.maxStakePerEvent}` : `Only ${balance} available`;
+  if (bid > cap) return bid > settings.maxStakePerEvent ? `Max Kori Stake is ${settings.maxStakePerEvent}` : `Only ${balance} koris available`;
   // If a participant cannot afford the minimum, any amount up to their cap (including 0) is accepted.
-  if (bid < settings.minStakePerEvent && cap >= settings.minStakePerEvent) return `Min stake is ${settings.minStakePerEvent}`;
+  if (bid < settings.minStakePerEvent && cap >= settings.minStakePerEvent) return `Min Kori Stake is ${settings.minStakePerEvent}`;
   return null;
 }

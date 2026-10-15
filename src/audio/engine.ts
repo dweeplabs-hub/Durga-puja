@@ -2,7 +2,7 @@ import { useSyncExternalStore } from 'react';
 import type { AudioConfig, AudioMode, SfxId } from '../types';
 import { defaultAudioConfig } from '../lib/defaults';
 import { deleteClip, getAllClips, putClip, type StoredClip } from './idb';
-import { playSfx } from './synth';
+import { playSfx, scheduleBgmBar, type SynthBgm } from './synth';
 import { SLOT_SYNTH, isVoiceSlotId } from './scripts';
 
 export const BGM_ID = 'BGM';
@@ -35,6 +35,8 @@ export interface AudioSnapshot {
   ducked: boolean;
   /** Short-lived synth effects currently sounding (for pad highlighting). */
   sfxActive: Partial<Record<SfxId, boolean>>;
+  /** Built-in festival loop currently playing as background music, if any. */
+  synthBgm: SynthBgm | null;
   error: string | null;
 }
 
@@ -68,7 +70,9 @@ class AudioEngine {
   private listeners = new Set<() => void>();
   private raf: number | null = null;
   private lastEmit = 0;
-  private snap: AudioSnapshot = { ready: false, unlocked: false, clips: {}, playing: {}, ducked: false, sfxActive: {}, error: null };
+  private snap: AudioSnapshot = { ready: false, unlocked: false, clips: {}, playing: {}, ducked: false, sfxActive: {}, synthBgm: null, error: null };
+  private synthBgmBus: GainNode | null = null;
+  private synthBgmTimer: ReturnType<typeof setInterval> | null = null;
   private started = false;
 
   // ------------------------------------------------------------ lifecycle
@@ -119,6 +123,10 @@ class AudioEngine {
   }
 
   setConfig(config: AudioConfig) {
+    if (config.bgmSource !== this.config.bgmSource) {
+      this.stopSynthBgm();
+      if (config.bgmSource !== 'FILE') this.tracks.get(BGM_ID)?.el.pause();
+    }
     this.config = config;
     this.applyConfig();
   }
@@ -284,11 +292,51 @@ class AudioEngine {
     }
   }
 
+  /** Plays/pauses background music from the configured source (uploaded file or built-in festival loop). */
   toggleBgm() {
+    const source = this.config.bgmSource;
+    if (source !== 'FILE') {
+      if (this.snap.synthBgm) this.stopSynthBgm();
+      else this.startSynthBgm(source);
+      return;
+    }
+    this.stopSynthBgm();
     const t = this.tracks.get(BGM_ID);
     if (!t) return;
     if (t.el.paused) void this.playTrack(BGM_ID);
     else t.el.pause();
+  }
+
+  /** Look-ahead scheduler: queues festival-loop bars ~1s ahead into a bus feeding the (duckable) BGM gain. */
+  private startSynthBgm(kind: SynthBgm) {
+    this.unlock();
+    const ctx = this.ensureCtx();
+    if (!ctx || !this.bgmGain) return;
+    this.tracks.get(BGM_ID)?.el.pause();
+    this.stopSynthBgm();
+    const bus = ctx.createGain();
+    bus.connect(this.bgmGain);
+    this.synthBgmBus = bus;
+    let next = ctx.currentTime + 0.1;
+    let bar = 0;
+    const pump = () => {
+      while (next < ctx.currentTime + 1.2) next += scheduleBgmBar(ctx, bus, kind, next, bar++);
+    };
+    pump();
+    this.synthBgmTimer = setInterval(pump, 250);
+    this.emit({ synthBgm: kind });
+  }
+
+  private stopSynthBgm() {
+    if (this.synthBgmTimer) clearInterval(this.synthBgmTimer);
+    this.synthBgmTimer = null;
+    const bus = this.synthBgmBus;
+    if (bus && this.ctx) {
+      bus.gain.setTargetAtTime(0, this.ctx.currentTime, 0.05);
+      setTimeout(() => bus.disconnect(), 400);
+    }
+    this.synthBgmBus = null;
+    if (this.snap.synthBgm) this.emit({ synthBgm: null });
   }
 
   /** Synth fallback for a slot; returns the total length in ms (0 if none). */
@@ -302,13 +350,14 @@ class AudioEngine {
     for (const sfx of ids) {
       const len = sfx === 'TICK' ? 330 : this.sfxLength(sfx);
       this.playSfx(sfx, { delayMs: offset });
-      offset += sfx === 'DRUMROLL' ? 3000 : len * (sfx === 'COIN' ? 0.6 : 1);
+      offset += sfx === 'DRUMROLL' ? 3000 : len * (sfx === 'KORI' ? 0.6 : 1);
     }
     return offset;
   }
 
   private sfxLength(id: SfxId) {
-    return { COIN: 600, TICK: 120, AIRHORN: 1400, DRUMROLL: 4500, FANFARE: 2800 }[id];
+    const lengths: Record<SfxId, number> = { KORI: 600, BELL: 2800, TICK: 120, AIRHORN: 1400, DRUMROLL: 4500, FANFARE: 2800 };
+    return lengths[id];
   }
 
   playSfx(id: SfxId, opts: { delayMs?: number; accent?: boolean } = {}) {
@@ -356,6 +405,7 @@ class AudioEngine {
     if (this.restoreTimer) clearTimeout(this.restoreTimer);
     this.restoreTimer = null;
     this.rampBgm(this.config.bgmVolume, 0.05);
+    this.stopSynthBgm();
     this.emit({ sfxActive: {}, ducked: false });
   }
 

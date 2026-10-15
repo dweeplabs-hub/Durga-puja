@@ -2,6 +2,7 @@ import { Crown, Trophy } from 'lucide-react';
 import type { Participant, ProjectorLanguage } from '../types';
 import { tx, type TextKey } from '../lib/i18n';
 import { Bi } from './Bi';
+import { KoriIcon } from './Kori';
 import { fmt } from './ui';
 
 const TITLES: TextKey[] = ['champion', 'firstRunnerUp', 'secondRunnerUp'];
@@ -34,7 +35,10 @@ export function Podium({ ranked, big = false, language = 'ENGLISH' }: { ranked: 
                   winners.map((w) => (
                     <div key={w.id}>
                       <p className={`font-extrabold leading-tight ${big ? 'text-4xl' : 'text-xl'}`}>{w.name}</p>
-                      <p className={`${big ? 'text-2xl' : 'text-sm'} font-semibold text-amber-200 tabular`}>{fmt(w.rankingBalance)} {tx(language, 'tokens')}</p>
+                      <p className={`${big ? 'text-2xl' : 'text-sm'} font-semibold text-amber-200 tabular`}><span className="inline-flex items-center gap-1.5">
+                        {fmt(w.rankingBalance)} <KoriIcon size={big ? 26 : 14} filled className="text-amber-900" /> {tx(language, 'koris')}
+                      </span>
+                      </p>
                     </div>
                   ))
                 )}

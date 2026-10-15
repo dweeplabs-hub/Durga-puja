@@ -36,7 +36,7 @@ export function LeaderboardView() {
               onChange={(v) => run((d) => setShowLoanColumnsPublic(d, v))}
               label={
                 <span className="inline-flex items-center gap-1">
-                  {data.showLoanColumnsPublic ? <Eye size={14} /> : <EyeOff size={14} />} Show Loan Columns on Public Board
+                  {data.showLoanColumnsPublic ? <Eye size={14} /> : <EyeOff size={14} />} Show Kori Loan Columns on Public Board
                 </span>
               }
             />
@@ -98,7 +98,7 @@ function MasterTable() {
                   E{e.eventNumber}
                 </th>
               ))}
-              <th className="px-2 py-2 text-right">Balance</th>
+              <th className="px-2 py-2 text-right">Current Koris</th>
               <th className="px-2 py-2 text-right">Rank</th>
             </tr>
           </thead>
@@ -113,7 +113,7 @@ function MasterTable() {
                   const delta = r.balanceAfter - r.balanceBefore;
                   const pending = e.status === 'IN_PROGRESS';
                   return (
-                    <td key={e.eventNumber} className="px-2 py-1.5 text-center" title={`Stake ${r.stake}, gross ${r.grossReward}, loan repaid ${r.loanRepaid}`}>
+                    <td key={e.eventNumber} className="px-2 py-1.5 text-center" title={`Kori stake ${r.stake}, gross ${r.grossReward}, Kori Loan repaid ${r.loanRepaid}`}>
                       <div className="text-slate-400">
                         {r.placement && PLACE_META[r.placement].emoji} {fmt(r.stake)}
                       </div>
@@ -130,7 +130,7 @@ function MasterTable() {
           </tbody>
         </table>
       </div>
-      <p className="mt-2 text-xs text-slate-500">Each cell shows the stake (top) and net balance change for the round (bottom). Hover for details.</p>
+      <p className="mt-2 text-xs text-slate-500">Each cell shows the Kori stake (top) and the net change in koris for the round (bottom). Hover for details.</p>
     </Card>
   );
 }

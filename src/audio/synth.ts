@@ -33,17 +33,65 @@ function tone(ctx: AudioContext, out: AudioNode, type: OscillatorType, freq: num
   osc.stop(t + attack + decay + 0.05);
 }
 
-/** Crisp metallic two-tone chime. */
-function coin(ctx: AudioContext, out: AudioNode, t: number): number {
-  for (const [f, at, peak] of [
-    [1318.5, 0, 0.35],
-    [1975.5, 0.08, 0.4],
-  ] as const) {
-    tone(ctx, out, 'square', f, t + at, peak * 0.35, 0.004, 0.32);
-    tone(ctx, out, 'sine', f * 2.01, t + at, peak * 0.25, 0.002, 0.18);
-    tone(ctx, out, 'triangle', f, t + at, peak, 0.003, 0.45);
+/**
+ * One cowrie click: a short hollow "tok" — a band-passed noise transient for the
+ * ceramic contact plus a quickly damped low resonance for the wooden bowl.
+ */
+function shellClick(ctx: AudioContext, out: AudioNode, t: number, peak: number, pitch: number) {
+  const src = ctx.createBufferSource();
+  src.buffer = noise(ctx);
+  const bp = ctx.createBiquadFilter();
+  bp.type = 'bandpass';
+  bp.frequency.value = pitch * 3.1;
+  bp.Q.value = 6;
+  src.connect(bp).connect(env(ctx, out, t, peak, 0.0015, 0.035));
+  src.start(t, Math.random() * 0.8);
+  src.stop(t + 0.06);
+  // hollow body resonance (two inharmonic partials, like a small ceramic shell)
+  tone(ctx, out, 'sine', pitch, t, peak * 0.55, 0.002, 0.09);
+  tone(ctx, out, 'triangle', pitch * 2.37, t, peak * 0.2, 0.001, 0.05);
+}
+
+/**
+ * "Kori clink": a handful of cowrie shells rattling together and settling into
+ * a wooden bowl — soft, organic and woody rather than metallic.
+ */
+function koriClink(ctx: AudioContext, out: AudioNode, t: number): number {
+  const shells = 7;
+  let at = 0;
+  for (let i = 0; i < shells; i++) {
+    const settle = i / (shells - 1);
+    const pitch = 820 + Math.random() * 520;
+    shellClick(ctx, out, t + at, 0.32 - settle * 0.16 + Math.random() * 0.06, pitch);
+    // occasional double-touch as two shells bounce
+    if (Math.random() < 0.35) shellClick(ctx, out, t + at + 0.012 + Math.random() * 0.01, 0.12, pitch * 1.18);
+    at += 0.035 + Math.random() * 0.045 + settle * 0.03;
   }
-  return 600;
+  // final soft knock of the bowl
+  tone(ctx, out, 'sine', 210, t + at, 0.18, 0.004, 0.22);
+  return Math.round((at + 0.3) * 1000);
+}
+
+/** Temple bell (ঘণ্টা): inharmonic bell partials with a long shimmering decay. */
+function bell(ctx: AudioContext, out: AudioNode, t: number, base = 523.25, peak = 0.22, decay = 2.6): number {
+  const partials: [number, number, number][] = [
+    [0.5, 0.5, 1.1],
+    [1, 1, 1],
+    [2.0, 0.55, 0.75],
+    [2.76, 0.4, 0.55],
+    [5.4, 0.22, 0.3],
+    [8.93, 0.1, 0.18],
+  ];
+  for (const [ratio, amp, len] of partials) {
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.value = base * ratio;
+    osc.detune.value = (Math.random() - 0.5) * 6;
+    osc.connect(env(ctx, out, t, peak * amp, 0.003, decay * len));
+    osc.start(t);
+    osc.stop(t + decay * len + 0.1);
+  }
+  return Math.round(decay * 1100);
 }
 
 /** Short rhythmic countdown tick; `accent` is used for the final second. */
@@ -171,8 +219,10 @@ function fanfare(ctx: AudioContext, out: AudioNode, t: number): number {
 export function playSfx(ctx: AudioContext, out: AudioNode, id: SfxId, opts: { when?: number; accent?: boolean } = {}): number {
   const t = Math.max(ctx.currentTime, opts.when ?? ctx.currentTime) + 0.01;
   switch (id) {
-    case 'COIN':
-      return coin(ctx, out, t);
+    case 'KORI':
+      return koriClink(ctx, out, t);
+    case 'BELL':
+      return bell(ctx, out, t);
     case 'TICK':
       return tick(ctx, out, t, opts.accent);
     case 'AIRHORN':
@@ -184,4 +234,78 @@ export function playSfx(ctx: AudioContext, out: AudioNode, id: SfxId, opts: { wh
   }
 }
 
-export const SFX_IDS: SfxId[] = ['COIN', 'TICK', 'AIRHORN', 'DRUMROLL', 'FANFARE'];
+export const SFX_IDS: SfxId[] = ['KORI', 'BELL', 'TICK', 'AIRHORN', 'DRUMROLL', 'FANFARE'];
+
+// ---------------------------------------------------------------- built-in festival background loops
+
+export type SynthBgm = 'DHAK' | 'CHIMES';
+
+/** A dhak (ঢাক) hit: pitched membrane thump with a slapped skin transient. */
+function dhakHit(ctx: AudioContext, out: AudioNode, t: number, peak: number, low = true) {
+  const osc = ctx.createOscillator();
+  osc.type = 'sine';
+  const f = low ? 92 : 168;
+  osc.frequency.setValueAtTime(f * 1.6, t);
+  osc.frequency.exponentialRampToValueAtTime(f, t + 0.05);
+  osc.connect(env(ctx, out, t, peak, 0.003, low ? 0.32 : 0.16));
+  osc.start(t);
+  osc.stop(t + 0.4);
+  const src = ctx.createBufferSource();
+  src.buffer = noise(ctx);
+  const bp = ctx.createBiquadFilter();
+  bp.type = 'bandpass';
+  bp.frequency.value = low ? 700 : 1500;
+  bp.Q.value = 1.2;
+  src.connect(bp).connect(env(ctx, out, t, peak * 0.35, 0.001, 0.05));
+  src.start(t, Math.random() * 0.5);
+  src.stop(t + 0.08);
+}
+
+/** Thin kansor (কাঁসর) gong tap that marks the beat in puja processions. */
+function kansor(ctx: AudioContext, out: AudioNode, t: number, peak: number) {
+  for (const [f, a] of [
+    [1180, 1],
+    [1732, 0.6],
+    [2640, 0.35],
+  ] as const) {
+    const osc = ctx.createOscillator();
+    osc.type = 'square';
+    osc.frequency.value = f;
+    const hp = ctx.createBiquadFilter();
+    hp.type = 'highpass';
+    hp.frequency.value = 900;
+    osc.connect(hp).connect(env(ctx, out, t, peak * a * 0.25, 0.002, 0.18));
+    osc.start(t);
+    osc.stop(t + 0.25);
+  }
+}
+
+/**
+ * Schedules one bar of a festival loop starting at `t` and returns its length in seconds.
+ * DHAK: a 16-step dhak & kansor groove (~112 bpm). CHIMES: soft pentatonic temple-bell chimes.
+ */
+export function scheduleBgmBar(ctx: AudioContext, out: AudioNode, kind: SynthBgm, t: number, bar: number): number {
+  if (kind === 'DHAK') {
+    const step = 60 / 112 / 4;
+    // dha . . na | dha . na . | dha . . na | dha na dha .   (accent on 1, variation every 4th bar)
+    const pattern = bar % 4 === 3 ? 'L..hL.h.L.hhLhLh' : 'L..hL.h.L..hL.h.';
+    for (let i = 0; i < 16; i++) {
+      const c = pattern[i];
+      if (c === 'L') dhakHit(ctx, out, t + i * step, i === 0 ? 0.55 : 0.4, true);
+      if (c === 'h') dhakHit(ctx, out, t + i * step, 0.28, false);
+      if (i % 4 === 2) kansor(ctx, out, t + i * step, i === 2 ? 0.5 : 0.35);
+    }
+    return step * 16;
+  }
+  // CHIMES: Bhupali-like pentatonic (Sa Re Ga Pa Dha), gentle random walk.
+  const scale = [523.25, 587.33, 659.25, 783.99, 880, 1046.5];
+  const len = 4;
+  let at = 0.05;
+  let idx = (bar * 2) % scale.length;
+  while (at < len - 0.3) {
+    idx = Math.max(0, Math.min(scale.length - 1, idx + Math.round((Math.random() - 0.5) * 3)));
+    bell(ctx, out, t + at, scale[idx], 0.06 + Math.random() * 0.03, 2.2);
+    at += 0.5 + Math.random() * 0.6;
+  }
+  return len;
+}

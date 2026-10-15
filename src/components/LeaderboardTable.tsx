@@ -3,6 +3,7 @@ import type { Participant, ProjectorLanguage } from '../types';
 import { PROJECTOR_TEXT, type TextKey } from '../lib/i18n';
 import { TIER_LABEL } from '../lib/engine';
 import { Badge, fmt } from './ui';
+import { Kori } from './Kori';
 
 interface Props {
   ranked: Participant[];
@@ -84,15 +85,21 @@ export function LeaderboardTable({ ranked, showLoans, variant, activeStakes, act
               </td>
               <td className={`${td} border-t border-slate-800/70 text-right text-slate-400`}>{fmt(p.startingBalance)}</td>
               <td className={`${td} border-t border-slate-800/70 text-right font-bold ${proj ? 'text-amber-200' : 'text-white'}`}>
-                {fmt(p.currentBalance)}
+                <Kori n={p.currentBalance} size={proj ? 22 : 14} />
                 {p.rankingBalance !== p.currentBalance && <span className="block text-xs font-normal text-slate-400">net {fmt(p.rankingBalance)}</span>}
               </td>
-              <td className={`${td} border-t border-slate-800/70 text-right text-slate-300`}>{fmt(p.totalTokensStaked)}</td>
+              <td className={`${td} border-t border-slate-800/70 text-right text-slate-300`}>
+                <Kori n={p.totalKorisStaked} size={proj ? 18 : 12} iconClassName="text-amber-500/60" />
+              </td>
               <td className={`${td} border-t border-slate-800/70 text-right text-emerald-300`}>{fmt(p.totalRewardsEarned)}</td>
               {showLoans && <td className={`${td} border-t border-slate-800/70 text-right ${p.outstandingLoan > 0 ? 'text-rose-300' : 'text-slate-500'}`}>{fmt(p.outstandingLoan)}</td>}
               {showLoans && <td className={`${td} border-t border-slate-800/70 text-right text-slate-400`}>{fmt(p.totalLoanRepaid)}</td>}
               <td className={`${td} border-t border-slate-800/70 text-right text-slate-300`}>{p.eventsParticipated}</td>
-              {activeStakes && <td className={`${td} border-t border-slate-800/70 text-right text-sky-300`}>{fmt(activeStakes[p.id] ?? 0)}</td>}
+              {activeStakes && (
+                <td className={`${td} border-t border-slate-800/70 text-right text-sky-300`}>
+                  <Kori n={activeStakes[p.id] ?? 0} size={proj ? 20 : 12} iconClassName="text-sky-300" />
+                </td>
+              )}
               {!proj && <td className={`${td} border-t border-slate-800/70 text-right text-violet-300`}>{p.performanceScore}</td>}
               {!proj && (
                 <td className={`${td} border-t border-slate-800/70`}>

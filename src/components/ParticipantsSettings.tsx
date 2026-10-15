@@ -79,7 +79,7 @@ function ParticipantsCard() {
               e.target.value = '';
             }}
           />
-          <Button size="sm" onClick={() => fileRef.current?.click()} title="CSV with a 'Name' column and optional 'Starting Balance' column">
+          <Button size="sm" onClick={() => fileRef.current?.click()} title="CSV with a 'Name' column and optional 'Starting Koris' column">
             <Upload size={14} /> Import roster CSV
           </Button>
         </>
@@ -98,8 +98,8 @@ function ParticipantsCard() {
           </Field>
         </div>
         <div className="w-32">
-          <Field label="Starting tokens">
-            <NumberInput value={bal} min={0} commitOnChange onCommit={setBal} ariaLabel="Starting balance" />
+          <Field label="Starting Koris">
+            <NumberInput value={bal} min={0} commitOnChange onCommit={setBal} ariaLabel="Starting Koris" />
           </Field>
         </div>
         <Button type="submit" variant="primary" disabled={!name.trim()}>
@@ -114,7 +114,7 @@ function ParticipantsCard() {
               <th className="px-2 py-2">ID</th>
               <th className="px-2 py-2">Name</th>
               <th className="px-2 py-2">Start</th>
-              <th className="px-2 py-2 text-right">Balance</th>
+              <th className="px-2 py-2 text-right">Current Koris</th>
               <th className="px-2 py-2" />
             </tr>
           </thead>
@@ -126,7 +126,7 @@ function ParticipantsCard() {
                   <NameInput value={p.name} onCommit={(v) => run((d) => updateParticipant(d, p.id, { name: v }))} />
                 </td>
                 <td className="w-28 px-2 py-1.5">
-                  <NumberInput value={p.startingBalance} min={0} disabled={started} ariaLabel={`Starting balance for ${p.name}`} onCommit={(n) => run((d) => updateParticipant(d, p.id, { startingBalance: n }))} />
+                  <NumberInput value={p.startingBalance} min={0} disabled={started} ariaLabel={`Starting Koris for ${p.name}`} onCommit={(n) => run((d) => updateParticipant(d, p.id, { startingBalance: n }))} />
                 </td>
                 <td className="px-2 py-1.5 text-right tabular">{fmt(p.currentBalance)}</td>
                 <td className="px-2 py-1.5 text-right">
@@ -218,12 +218,12 @@ function SettingsCard() {
         )
       }
     >
-      {locked && <p className="mb-4 text-xs text-amber-200/80">{started ? 'Rules lock automatically once bidding opens for Event 1 or a loan is issued.' : 'Unlock to edit.'}</p>}
+      {locked && <p className="mb-4 text-xs text-amber-200/80">{started ? 'Rules lock automatically once bidding opens for Event 1 or a Kori Loan is issued.' : 'Unlock to edit.'}</p>}
       <div className="grid gap-4 sm:grid-cols-2">
         {num('Total events', draft.totalEvents, (n) => set('totalEvents', n))}
-        {num('Starting balance', draft.startingBalance, (n) => set('startingBalance', n), 'Virtual tokens per participant')}
-        {num('Min stake per event', draft.minStakePerEvent, (n) => set('minStakePerEvent', n))}
-        {num('Max stake per event', draft.maxStakePerEvent, (n) => set('maxStakePerEvent', n), 'Prevents all-in elimination')}
+        {num('Starting Koris', draft.startingBalance, (n) => set('startingBalance', n), 'খেলার কড়ি — Koris (কড়ি) each participant starts with')}
+        {num('Min Kori Stake per event', draft.minStakePerEvent, (n) => set('minStakePerEvent', n))}
+        {num('Max Kori Stake per event', draft.maxStakePerEvent, (n) => set('maxStakePerEvent', n), 'Prevents all-in elimination')}
       </div>
 
       <p className="mb-2 mt-6 text-xs font-semibold uppercase tracking-wider text-slate-400">Payout multipliers (total returned incl. stake)</p>
@@ -242,7 +242,7 @@ function SettingsCard() {
 
       <p className="mb-2 mt-6 text-xs font-semibold uppercase tracking-wider text-slate-400">Loans</p>
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Fixed loan tranche">
+        <Field label="Kori Loan tranche (কড়ি ধার)">
           <div className="flex gap-2">
             {[20, 50].map((v) => (
               <Button key={v} size="sm" disabled={locked} variant={draft.loanSettings.fixedLoanTranche === v ? 'primary' : 'secondary'} onClick={() => setLoan('fixedLoanTranche', v)}>
@@ -252,31 +252,31 @@ function SettingsCard() {
             <NumberInput value={draft.loanSettings.fixedLoanTranche} min={1} disabled={locked} commitOnChange onCommit={(n) => setLoan('fixedLoanTranche', n)} ariaLabel="Loan tranche" />
           </div>
         </Field>
-        {num('Max outstanding loan / participant', draft.loanSettings.maxTotalLoanPerParticipant, (n) => setLoan('maxTotalLoanPerParticipant', n))}
-        {num('Repayment rate (% of gross reward)', draft.loanSettings.repaymentRatePercent, (n) => setLoan('repaymentRatePercent', n), 'e.g. 2 → a 100-token reward repays 2 and credits 98', 0.5)}
-        <Field label="Token precision">
+        {num('Max outstanding Kori Loan / participant', draft.loanSettings.maxTotalLoanPerParticipant, (n) => setLoan('maxTotalLoanPerParticipant', n))}
+        {num('Repayment rate (% of gross reward)', draft.loanSettings.repaymentRatePercent, (n) => setLoan('repaymentRatePercent', n), 'e.g. 2 → a 100-kori reward repays 2 and credits 98', 0.5)}
+        <Field label="Kori precision">
           <select
             className={inputClass}
             disabled={locked}
             value={draft.loanSettings.repaymentPrecision}
             onChange={(e) => setLoan('repaymentPrecision', e.target.value as Settings['loanSettings']['repaymentPrecision'])}
           >
-            <option value="INTEGER">Integer (round repayment down)</option>
+            <option value="INTEGER">Whole koris (round repayment down)</option>
             <option value="DECIMAL2">2 decimals (exact)</option>
           </select>
         </Field>
         <div className="space-y-3 sm:col-span-2">
           <Toggle
             disabled={locked || draft.loanSettings.repaymentPrecision !== 'INTEGER'}
-            checked={draft.loanSettings.minimumOneTokenDeduction}
-            onChange={(v) => setLoan('minimumOneTokenDeduction', v)}
-            label="Deduct at least 1 token when a borrower wins anything (integer mode)"
+            checked={draft.loanSettings.minimumOneKoriDeduction}
+            onChange={(v) => setLoan('minimumOneKoriDeduction', v)}
+            label="Deduct at least 1 kori when a borrower wins anything (whole-kori mode)"
           />
           <Toggle
             disabled={locked}
             checked={draft.loanSettings.deductUnpaidLoanAtFinale}
             onChange={(v) => setLoan('deductUnpaidLoanAtFinale', v)}
-            label="Deduct unpaid loan from final balance when scores are frozen"
+            label="Deduct unpaid Kori Loan from final koris when scores are frozen"
           />
         </div>
         {num('Default bidding window (seconds)', draft.defaultBiddingSeconds, (n) => set('defaultBiddingSeconds', n), undefined, 15)}

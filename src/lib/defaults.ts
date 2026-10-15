@@ -26,7 +26,7 @@ export function defaultSettings(): Settings {
       maxTotalLoanPerParticipant: 100,
       repaymentRatePercent: 2,
       repaymentPrecision: 'INTEGER',
-      minimumOneTokenDeduction: false,
+      minimumOneKoriDeduction: false,
       deductUnpaidLoanAtFinale: false,
     },
     defaultBiddingSeconds: 120,
@@ -48,7 +48,7 @@ export const VOICE_SLOT_DEFS: { id: VoiceSlotId; labelBn: string; labelEn: strin
   { id: 'THIRTY_SEC_LEFT', labelBn: '৩০ সেকেন্ড বাকি', labelEn: '30-Second Warning', autoTrigger: true, trigger: 'When the bidding countdown hits 00:30' },
   { id: 'BIDDING_CLOSED', labelBn: 'বিডিং বন্ধ', labelEn: 'Bidding Locked', autoTrigger: true, trigger: 'When stakes are locked, or the countdown reaches 00:00' },
   { id: 'LEADERBOARD_REVEAL', labelBn: 'ফলাফল ও লিডারবোর্ড', labelEn: 'Results & Leaderboard', autoTrigger: true, trigger: 'When “Publish Results & Update Leaderboard” is clicked' },
-  { id: 'LOAN_ISSUED', labelBn: 'টোকেন লোন', labelEn: 'Token Loan Granted', autoTrigger: false, trigger: 'When a participant receives a token loan (optional)' },
+  { id: 'LOAN_ISSUED', labelBn: 'কড়ি ধার', labelEn: 'Kori Loan Granted', autoTrigger: false, trigger: 'When a participant receives a Kori loan (optional)' },
   { id: 'CHAMPION_CROWNED', labelBn: 'চ্যাম্পিয়ন ঘোষণা', labelEn: 'Champion Reveal', autoTrigger: true, trigger: 'When final scores are frozen and the podium is revealed' },
 ];
 
@@ -70,22 +70,39 @@ export function defaultAudioConfig(): AudioConfig {
     bgmVolume: 0.5,
     sfxVolume: 0.8,
     bgmLoop: true,
+    bgmSource: 'FILE',
     duckingEnabled: true,
+    koriClinkFx: true,
     autoTriggerMaster: true,
     countdownTicks: true,
     slots,
-    sfxLabels: { COIN: 'Coin', TICK: 'Countdown Tick', AIRHORN: 'Airhorn', DRUMROLL: 'Drumroll', FANFARE: 'Victory Fanfare' },
+    sfxLabels: { KORI: 'Kori Clink', BELL: 'Temple Bell', TICK: 'Countdown Tick', AIRHORN: 'Airhorn', DRUMROLL: 'Drumroll', FANFARE: 'Victory Fanfare' },
   };
 }
+
+const LEGACY_SLOT_LABELS: Record<string, string[]> = { LOAN_ISSUED: ['Token Loan Granted', 'টোকেন লোন'] };
 
 /** Fills any missing audio fields (older saves / imported backups) with defaults, keeping custom slots. */
 export function normaliseAudioConfig(raw: Partial<AudioConfig> | undefined): AudioConfig {
   const base = defaultAudioConfig();
   if (!raw) return base;
   const saved = Array.isArray(raw.slots) ? raw.slots : [];
-  const builtIn = base.slots.map((b) => ({ ...b, ...saved.find((s) => s.id === b.id), custom: false }));
+  const builtIn = base.slots.map((b) => {
+    const s = saved.find((x) => x.id === b.id);
+    const merged = { ...b, ...s, custom: false };
+    // Labels still on an old default follow the new default (e.g. "Token Loan" → "Kori Loan").
+    if (s && LEGACY_SLOT_LABELS[b.id]?.includes(s.labelEn)) merged.labelEn = b.labelEn;
+    if (s && LEGACY_SLOT_LABELS[b.id]?.includes(s.labelBn)) merged.labelBn = b.labelBn;
+    return merged;
+  });
   const custom = saved.filter((s) => s.custom && !builtIn.some((b) => b.id === s.id)).map((s) => ({ ...base.slots[0], ...s, custom: true }));
-  return { ...base, ...raw, sfxLabels: { ...base.sfxLabels, ...raw.sfxLabels }, slots: [...builtIn, ...custom] };
+  // v3 had a generic "COIN" pad; it is now the Kori clink.
+  const { COIN: _legacyCoin, ...savedLabels } = (raw.sfxLabels ?? {}) as Partial<Record<string, string>>;
+  void _legacyCoin;
+  const sfxLabels = { ...base.sfxLabels };
+  for (const k of Object.keys(sfxLabels) as (keyof typeof sfxLabels)[]) if (savedLabels[k]) sfxLabels[k] = savedLabels[k]!;
+  const bgmSource = raw.bgmSource === 'DHAK' || raw.bgmSource === 'CHIMES' ? raw.bgmSource : 'FILE';
+  return { ...base, ...raw, bgmSource, sfxLabels, slots: [...builtIn, ...custom] };
 }
 
 export function makeEvent(eventNumber: number, settings: Settings): EventRound {

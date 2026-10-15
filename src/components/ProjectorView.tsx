@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Coins, Languages, Maximize, Minimize, Trophy, Volume2, VolumeX, X } from 'lucide-react';
+import { Languages, Maximize, Minimize, Trophy, Volume2, VolumeX, X } from 'lucide-react';
 import { useCompetition, useLedger } from '../store';
 import { podiumConfetti, readLocalFlag, roundWinnerConfetti, writeLocalFlag } from '../lib/effects';
 import { LeaderboardTable } from './LeaderboardTable';
@@ -8,6 +8,7 @@ import { Countdown } from './Countdown';
 import { PLACE_META, fmt } from './ui';
 import { STATUS_TEXT, bnNum } from '../lib/i18n';
 import { Bi } from './Bi';
+import { KoriIcon } from './Kori';
 import { brandTitle } from '../lib/branding';
 import { setProjectorLanguage } from '../lib/operations';
 import type { PlacementKey } from '../types';
@@ -68,7 +69,7 @@ export function ProjectorView({ onClose }: { onClose?: () => void }) {
   const summaryResults = summaryEvent ? (ledger.roundResults[summaryEvent.eventNumber] ?? []) : [];
 
   return (
-    <div className="group relative min-h-screen overflow-hidden bg-[radial-gradient(ellipse_at_top,_#3b0764_0%,_#0f0a1e_45%,_#020617_100%)] text-white">
+    <div className="group relative min-h-screen overflow-hidden bg-[radial-gradient(ellipse_at_top,_#5a1416_0%,_#1f0a0a_48%,_#0b0606_100%)] text-white">
       <div className="pointer-events-none absolute -left-40 -top-40 h-[30rem] w-[30rem] rounded-full bg-fuchsia-600/20 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-40 -right-40 h-[30rem] w-[30rem] rounded-full bg-amber-500/10 blur-3xl" />
 
@@ -103,6 +104,7 @@ export function ProjectorView({ onClose }: { onClose?: () => void }) {
         )}
       </div>
 
+      <div className="festive-strip relative z-10" aria-hidden />
       <div className="relative z-10 mx-auto flex min-h-screen max-w-[1800px] flex-col px-6 py-6 lg:px-10">
         <header className="flex flex-wrap items-center justify-between gap-6">
           <div>
@@ -133,13 +135,13 @@ export function ProjectorView({ onClose }: { onClose?: () => void }) {
               <p className="text-2xl font-semibold uppercase tracking-[0.3em] text-amber-300">🏆 <Bi lang={lang} k={'championshipPodium'} /> 🏆</p>
             </div>
             <Podium ranked={ledger.ranked} big language={lang} />
-            <div className="rounded-3xl border border-white/10 bg-black/30 p-4 backdrop-blur">
+            <div className="festive-frame rounded-3xl border border-white/10 bg-black/30 p-4 backdrop-blur">
               <LeaderboardTable ranked={ledger.ranked} showLoans={showLoans} variant="projector" language={lang} />
             </div>
           </main>
         ) : (
           <main className="mt-6 grid flex-1 gap-6 xl:grid-cols-[1fr_420px]">
-            <div className="rounded-3xl border border-white/10 bg-black/30 p-4 backdrop-blur">
+            <div className="festive-frame rounded-3xl border border-white/10 bg-black/30 p-4 backdrop-blur">
               <LeaderboardTable ranked={ledger.ranked} showLoans={showLoans} variant="projector" activeStakes={activeStakes} activeEventNumber={current.eventNumber} language={lang} />
             </div>
             <aside className="flex flex-col gap-6">
@@ -149,9 +151,9 @@ export function ProjectorView({ onClose }: { onClose?: () => void }) {
                 {current.description && <p className="mt-3 whitespace-pre-line text-lg text-slate-300">{current.description}</p>}
                 {current.status === 'IN_PROGRESS' && (
                   <div className="mt-4 flex items-center gap-3 rounded-2xl bg-sky-500/15 px-4 py-3 text-sky-200">
-                    <Coins size={28} />
+                    <KoriIcon size={34} filled className="text-amber-900" />
                     <div>
-                      <p className="text-sm uppercase tracking-wider"><Bi lang={lang} k={'tokensInPlay'} /></p>
+                      <p className="text-sm uppercase tracking-wider"><Bi lang={lang} k={'korisInPlay'} /></p>
                       <p className="text-3xl font-black tabular">{fmt(pot)}</p>
                     </div>
                   </div>

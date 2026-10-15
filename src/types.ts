@@ -22,8 +22,8 @@ export interface LoanSettings {
   /** Percentage, e.g. 2 means 2% of gross reward. */
   repaymentRatePercent: number;
   repaymentPrecision: RepaymentPrecision;
-  /** Integer mode only: deduct at least 1 token when reward > 0 and the computed deduction rounds to 0. */
-  minimumOneTokenDeduction: boolean;
+  /** Integer mode only: deduct at least 1 kori when reward > 0 and the computed deduction rounds to 0. */
+  minimumOneKoriDeduction: boolean;
   deductUnpaidLoanAtFinale: boolean;
 }
 
@@ -52,7 +52,7 @@ export type TieBreakTier = 'BALANCE' | 'LOAN' | 'PERFORMANCE' | 'REWARDS' | 'MAN
 /** Fully computed participant record (all leaderboard fields). */
 export interface Participant extends ParticipantBase {
   currentBalance: number;
-  totalTokensStaked: number;
+  totalKorisStaked: number;
   totalRewardsEarned: number;
   outstandingLoan: number;
   totalLoanRepaid: number;
@@ -152,7 +152,10 @@ export interface Branding {
 export type ProjectorLanguage = 'BILINGUAL' | 'ENGLISH';
 
 /** Built-in synthesized sound effects. */
-export type SfxId = 'COIN' | 'TICK' | 'AIRHORN' | 'DRUMROLL' | 'FANFARE';
+export type SfxId = 'KORI' | 'BELL' | 'TICK' | 'AIRHORN' | 'DRUMROLL' | 'FANFARE';
+
+/** Background music: an uploaded file or one of the built-in synthesized festival loops. */
+export type BgmSource = 'FILE' | 'DHAK' | 'CHIMES';
 
 /** What an automatic workflow trigger plays for a slot. */
 export type AudioMode = 'MP3' | 'SYNTH' | 'BOTH' | 'MUTED';
@@ -190,7 +193,10 @@ export interface AudioConfig {
   bgmVolume: number;
   sfxVolume: number;
   bgmLoop: boolean;
+  bgmSource: BgmSource;
   duckingEnabled: boolean;
+  /** Play the Kori clink when stakes lock, a loan is issued or rewards are credited. */
+  koriClinkFx: boolean;
   /** Global "Auto-Trigger on Event Steps" switch. */
   autoTriggerMaster: boolean;
   /** Tick on each second from 00:10 to 00:01 of the bidding countdown. */

@@ -15,6 +15,15 @@ export function cue(slotId: VoiceSlotId) {
   audioEngine.playSlotWithMode(slotId, slot.mode);
 }
 
+/**
+ * The Kori clink — cowries rattling into a bowl — for moments when koris change
+ * hands: stakes locked, a Kori loan issued, rewards credited.
+ */
+export function cueKoriClink() {
+  const cfg = useCompetition.getState().data.audio;
+  if (cfg.autoTriggerMaster && cfg.koriClinkFx) audioEngine.playSfx('KORI');
+}
+
 /** Events whose "bidding closed" announcement already played (timer hit 00:00), so locking doesn't repeat it. */
 const closedAnnounced = new Set<number>();
 

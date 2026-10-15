@@ -1,13 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import {
   ArrowRight,
   Ban,
   CheckCircle2,
   ChevronRight,
-  Coins,
   Crown,
   Gavel,
-  HandCoins,
   Lock,
   Megaphone,
   Pause,
@@ -46,12 +44,13 @@ import {
   updateEventMeta,
   type BidPreset,
 } from '../lib/operations';
-import { allowClosedCue, cue, cueBiddingClosed } from '../audio/cues';
+import { allowClosedCue, cue, cueBiddingClosed, cueKoriClink } from '../audio/cues';
 import { audioEngine, formatTime, useAudioSnapshot } from '../audio/engine';
 import { podiumConfetti, roundWinnerConfetti } from '../lib/effects';
 import { Badge, Button, Card, Field, Modal, NumberInput, PLACE_META, StatusBadge, inputClass, fmt } from './ui';
 import { Countdown } from './Countdown';
 import { CorrectionModal } from './CorrectionModal';
+import { Kori, KoriIcon } from './Kori';
 
 const STEPS: { status: EventStatus; key: string; title: string; subtitle: string; icon: typeof Megaphone }[] = [
   { status: 'UPCOMING', key: 'A', title: 'Announce & Open Bidding', subtitle: 'Set name, rules, timer', icon: Megaphone },
@@ -223,7 +222,7 @@ function StepAnnounce({ event }: { event: EventRound }) {
       <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-slate-800 pt-4">
         <p className="text-sm text-slate-400">
           {isCurrent
-            ? `Opening bidding locks the competition rules. Stakes: ${data.settings.minStakePerEvent}–${data.settings.maxStakePerEvent} tokens.`
+            ? `Opening bidding locks the competition rules. Kori stakes: ${data.settings.minStakePerEvent}–${data.settings.maxStakePerEvent} koris.`
             : `Event ${data.currentEventNumber} is the active event — you can prepare this event's details in advance.`}
         </p>
         <Button variant="primary" size="lg" disabled={!isCurrent || data.participants.length === 0} onClick={() => run((d) => openBidding(d, event.eventNumber), 'Bidding is open!') && cue('BIDDING_OPEN')}>
@@ -352,11 +351,11 @@ function StepBidding({ event }: { event: EventRound }) {
             <thead className="text-left text-xs uppercase tracking-wide text-slate-400">
               <tr>
                 <th className="px-2 py-2">Participant</th>
-                <th className="px-2 py-2 text-right">Balance</th>
-                <th className="px-2 py-2 text-right">Loan</th>
-                <th className="px-2 py-2">Grant Loan</th>
+                <th className="px-2 py-2 text-right">Current Koris</th>
+                <th className="px-2 py-2 text-right">Kori Loan</th>
+                <th className="px-2 py-2">Grant Kori Loan</th>
                 <th className="px-2 py-2">Plays</th>
-                <th className="px-2 py-2">Stake</th>
+                <th className="px-2 py-2">Kori Stake</th>
                 <th className="px-2 py-2">Quick bet</th>
               </tr>
             </thead>
@@ -396,19 +395,20 @@ function StepBidding({ event }: { event: EventRound }) {
             <Button
               variant="primary"
               onClick={() => {
-                if (run((d) => lockBidding(d, event.eventNumber), 'Stakes locked and deducted from balances')) {
+                if (run((d) => lockBidding(d, event.eventNumber), 'Kori stakes locked and deducted')) {
                   setConfirming(false);
+                  cueKoriClink();
                   cueBiddingClosed(event.eventNumber);
                 }
               }}
             >
-              <Lock size={16} /> Lock {fmt(pot)} tokens
+              <Lock size={16} /> Lock {fmt(pot)} koris
             </Button>
           </>
         }
       >
         <p className="text-sm text-slate-300">
-          Each confirmed stake is deducted immediately from the participant's balance and can only be changed afterwards through an audited correction.
+          Each confirmed Kori stake is deducted immediately from the participant's koris and can only be changed afterwards through an audited correction.
         </p>
         <ul className="mt-4 grid grid-cols-2 gap-x-6 gap-y-1 text-sm">
           {participating.map((p) => (
@@ -443,7 +443,9 @@ function BidRow({ p, event, error, trancheOptions }: { p: Participant; event: Ev
         <div className="font-medium">{p.name}</div>
         <div className="font-mono text-xs text-slate-500">{p.id}</div>
       </td>
-      <td className={`px-2 py-2 text-right tabular font-semibold ${low ? 'text-rose-300' : ''}`}>{fmt(p.currentBalance)}</td>
+      <td className={`px-2 py-2 text-right tabular font-semibold ${low ? 'text-rose-300' : ''}`}>
+        <Kori n={p.currentBalance} iconClassName={low ? 'text-rose-400' : 'text-amber-400'} />
+      </td>
       <td className={`px-2 py-2 text-right tabular ${p.outstandingLoan > 0 ? 'text-rose-300' : 'text-slate-500'}`}>{fmt(p.outstandingLoan)}</td>
       <td className="px-2 py-2">
         <div className="flex gap-1">
@@ -453,14 +455,14 @@ function BidRow({ p, event, error, trancheOptions }: { p: Participant; event: Ev
               size="xs"
               variant={low ? 'warning' : 'secondary'}
               disabled={amt > headroom}
-              title={amt > headroom ? `Loan limit reached (${headroom} available)` : `Issue a ${amt}-token loan`}
-              onClick={() => run((d) => issueLoan(d, p.id, amt), `${p.name} received a ${amt}-token loan`) && cue('LOAN_ISSUED')}
+              title={amt > headroom ? `Kori Loan limit reached (${headroom} available)` : `Issue a ${amt}-kori loan (কড়ি ধার)`}
+              onClick={() => run((d) => issueLoan(d, p.id, amt), `${p.name} received a ${amt}-kori loan`) && (cueKoriClink(), cue('LOAN_ISSUED'))}
             >
-              <HandCoins size={12} />+{amt}
+              <KoriIcon size={12} />+{amt}
             </Button>
           ))}
         </div>
-        {low && <div className="mt-1 text-xs text-rose-300">{p.currentBalance <= 0 ? 'No tokens — issue loan?' : 'Below min stake'}</div>}
+        {low && <div className="mt-1 text-xs text-rose-300">{p.currentBalance <= 0 ? 'No koris — issue a Kori Loan?' : 'Below Min Kori Stake'}</div>}
       </td>
       <td className="px-2 py-2">
         <input
@@ -521,7 +523,7 @@ function StepConduct({ event }: { event: EventRound }) {
           actions={
             <>
               <Badge tone="sky">
-                <Coins size={12} /> {fmt(pot)} tokens locked
+                <KoriIcon size={12} /> {fmt(pot)} koris locked
               </Badge>
               <Button size="sm" variant="ghost" onClick={() => setCorrecting(true)}>
                 <Pencil size={14} /> Audited stake correction
@@ -535,8 +537,8 @@ function StepConduct({ event }: { event: EventRound }) {
               <thead className="text-left text-xs uppercase tracking-wide text-slate-400">
                 <tr>
                   <th className="px-2 py-2">Participant</th>
-                  <th className="px-2 py-2 text-right">Locked stake</th>
-                  <th className="px-2 py-2 text-right">Balance now</th>
+                  <th className="px-2 py-2 text-right">Locked Kori Stake</th>
+                  <th className="px-2 py-2 text-right">Current Koris</th>
                   <th className="px-2 py-2">Placement</th>
                 </tr>
               </thead>
@@ -550,8 +552,12 @@ function StepConduct({ event }: { event: EventRound }) {
                         <span className="font-medium">{p.name}</span> <span className="font-mono text-xs text-slate-500">{p.id}</span>
                         {!participating && <span className="ml-2 text-xs text-slate-500">(sitting out)</span>}
                       </td>
-                      <td className="px-2 py-2 text-right tabular font-semibold text-sky-300">{fmt(participating ? (event.bids[p.id] ?? 0) : 0)}</td>
-                      <td className="px-2 py-2 text-right tabular">{fmt(p.currentBalance)}</td>
+                      <td className="px-2 py-2 text-right tabular font-semibold text-sky-300">
+                        <Kori n={participating ? (event.bids[p.id] ?? 0) : 0} iconClassName="text-sky-300" />
+                      </td>
+                      <td className="px-2 py-2 text-right tabular">
+                        <Kori n={p.currentBalance} />
+                      </td>
                       <td className="px-2 py-2">
                         {participating ? (
                           <div className="flex gap-1">
@@ -604,9 +610,9 @@ function StepConduct({ event }: { event: EventRound }) {
                         <span className="text-right">{fmt(r.stake)}</span>
                         <span>Gross reward</span>
                         <span className="text-right">{fmt(r.grossReward)}</span>
-                        <span>Loan repayment ({data.settings.loanSettings.repaymentRatePercent}%)</span>
+                        <span>Kori Loan repayment ({data.settings.loanSettings.repaymentRatePercent}%)</span>
                         <span className="text-right text-rose-300">−{fmt(r.loanRepaid)}</span>
-                        <span>New balance</span>
+                        <span>New koris</span>
                         <span className="text-right font-semibold text-white">{fmt(r.balanceAfter)}</span>
                       </div>
                     </div>
@@ -647,6 +653,7 @@ function StepConduct({ event }: { event: EventRound }) {
               variant="success"
               onClick={() => {
                 if (run((d) => publishResults(d, event.eventNumber), `Event ${event.eventNumber} results published`)) {
+                  cueKoriClink();
                   cue('LEADERBOARD_REVEAL');
                   setConfirming(false);
                   roundWinnerConfetti();
@@ -736,9 +743,9 @@ function StepSummary({ event, onSelect }: { event: EventRound; onSelect: (n: num
         </div>
         <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
           <Stat label="Players" value={totals.players} />
-          <Stat label="Total tokens staked" value={fmt(totals.staked)} />
-          <Stat label="Total tokens won (gross)" value={fmt(totals.won)} tone="text-emerald-300" />
-          <Stat label="Loans repaid" value={fmt(totals.repaid)} tone="text-rose-300" />
+          <Stat label="Total Koris Staked" value={<Kori n={totals.staked} size={18} />} />
+          <Stat label="Total Koris Won (gross)" value={<Kori n={totals.won} size={18} />} tone="text-emerald-300" />
+          <Stat label="Kori Loans Repaid" value={<Kori n={totals.repaid} size={18} />} tone="text-rose-300" />
         </div>
 
         <details className="mt-4 rounded-xl border border-slate-800 bg-slate-950/50">
@@ -748,13 +755,13 @@ function StepSummary({ event, onSelect }: { event: EventRound; onSelect: (n: num
               <thead className="text-left uppercase text-slate-500">
                 <tr>
                   <th className="px-2 py-1">Participant</th>
-                  <th className="px-2 py-1 text-right">Before</th>
+                  <th className="px-2 py-1 text-right">Koris before</th>
                   <th className="px-2 py-1 text-right">Stake</th>
                   <th className="px-2 py-1">Place</th>
                   <th className="px-2 py-1 text-right">Gross</th>
-                  <th className="px-2 py-1 text-right">Loan repaid</th>
+                  <th className="px-2 py-1 text-right">Kori Loan repaid</th>
                   <th className="px-2 py-1 text-right">Net credited</th>
-                  <th className="px-2 py-1 text-right">After</th>
+                  <th className="px-2 py-1 text-right">Koris after</th>
                 </tr>
               </thead>
               <tbody>
@@ -844,7 +851,7 @@ function StepSummary({ event, onSelect }: { event: EventRound; onSelect: (n: num
   );
 }
 
-function Stat({ label, value, tone = 'text-white' }: { label: string; value: number | string; tone?: string }) {
+function Stat({ label, value, tone = 'text-white' }: { label: string; value: ReactNode; tone?: string }) {
   return (
     <div className="rounded-xl border border-slate-800 bg-slate-950 px-4 py-3">
       <p className="text-xs uppercase tracking-wide text-slate-500">{label}</p>

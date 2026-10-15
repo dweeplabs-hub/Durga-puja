@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from 'react';
+import { useRef, useState, type ComponentType, type ReactNode } from 'react';
 import {
   AlertTriangle,
   ChevronDown,
@@ -21,9 +21,10 @@ import {
   Trophy,
   Upload,
   Volume2,
-  Coins,
+  Bell,
 } from 'lucide-react';
-import type { AudioMode, AudioSlotConfig, SfxId } from '../types';
+import type { AudioMode, AudioSlotConfig, BgmSource, SfxId } from '../types';
+import { KoriIcon } from './Kori';
 import { useCompetition, toast } from '../store';
 import { BGM_ID, audioEngine, formatTime, useAudioSnapshot, type AudioSnapshot } from '../audio/engine';
 import { VOICE_SCRIPTS, isVoiceSlotId } from '../audio/scripts';
@@ -34,7 +35,14 @@ import { Badge, Button, Card, Field, Toggle, inputClass } from './ui';
 
 // ---------------------------------------------------------------- shared bits
 
-export const SFX_ICON: Record<SfxId, typeof Coins> = { COIN: Coins, TICK: Timer, AIRHORN: Megaphone, DRUMROLL: Drum, FANFARE: Trophy };
+export const SFX_ICON: Record<SfxId, ComponentType<{ size?: number; className?: string }>> = {
+  KORI: KoriIcon,
+  BELL: Bell,
+  TICK: Timer,
+  AIRHORN: Megaphone,
+  DRUMROLL: Drum,
+  FANFARE: Trophy,
+};
 
 /** Range slider that previews live and commits to the store when released. */
 export function VolumeSlider({ label, value, onCommit, onPreview, icon }: { label: string; value: number; onCommit: (v: number) => void; onPreview?: (v: number) => void; icon?: ReactNode }) {
@@ -365,6 +373,12 @@ export function AudioUnlockBanner() {
   );
 }
 
+const BGM_SOURCES: { id: BgmSource; bn: string; en: string; hint: string }[] = [
+  { id: 'FILE', bn: 'নিজের গান', en: 'Uploaded track', hint: '' },
+  { id: 'DHAK', bn: 'ঢাকের তাল', en: 'Festival dhak beat', hint: 'Built-in dhak & kansor puja groove — loops endlessly, no file needed.' },
+  { id: 'CHIMES', bn: 'ঘণ্টার সুর', en: 'Soft temple chimes', hint: 'Built-in gentle temple-bell chimes for calm moments — no file needed.' },
+];
+
 export function SoundboardView() {
   const audio = useCompetition((s) => s.data.audio);
   const run = useCompetition((s) => s.run);
@@ -374,7 +388,8 @@ export function SoundboardView() {
   const [renaming, setRenaming] = useState(false);
   const preview = (patch: Partial<typeof audio>) => audioEngine.setConfig({ ...audio, ...patch });
   const bgmClip = snap.clips[BGM_ID];
-  const bgmPlaying = Boolean(snap.playing[BGM_ID]);
+  const bgmPlaying = Boolean(snap.playing[BGM_ID]) || Boolean(snap.synthBgm);
+  const fileSource = audio.bgmSource === 'FILE';
 
   return (
     <div className="space-y-6">
@@ -391,6 +406,15 @@ export function SoundboardView() {
                 <Toggle checked={audio.autoTriggerMaster} onChange={(v) => run((d) => updateAudio(d, { autoTriggerMaster: v }))} label="Auto-Trigger on Event Steps" />
                 <Toggle checked={audio.duckingEnabled} onChange={(v) => run((d) => updateAudio(d, { duckingEnabled: v }))} label="Auto-duck BGM under voice" />
                 <Toggle checked={audio.countdownTicks} onChange={(v) => run((d) => updateAudio(d, { countdownTicks: v }))} label="Countdown ticks 00:10 → 00:01" />
+                <Toggle
+                  checked={audio.koriClinkFx}
+                  onChange={(v) => run((d) => updateAudio(d, { koriClinkFx: v }))}
+                  label={
+                    <span className="inline-flex items-center gap-1">
+                      <KoriIcon size={14} className="text-amber-400" /> Kori clink on stakes, loans &amp; rewards
+                    </span>
+                  }
+                />
               </div>
             </div>
             <button
@@ -412,13 +436,36 @@ export function SoundboardView() {
         >
           <div className="space-y-4">
             <div className="flex items-center gap-3">
-              <Button variant={bgmPlaying ? 'secondary' : 'success'} size="lg" className="w-32" disabled={!bgmClip} onClick={() => audioEngine.toggleBgm()}>
+              <Button variant={bgmPlaying ? 'secondary' : 'success'} size="lg" className="w-32" disabled={fileSource && !bgmClip} onClick={() => audioEngine.toggleBgm()}>
                 {bgmPlaying ? <Pause size={18} /> : <Play size={18} />} {bgmPlaying ? 'Pause' : 'Play'}
               </Button>
-              <div className="min-w-0 flex-1">{bgmClip ? <Scrubber slotId={BGM_ID} snap={snap} /> : <p className="text-sm text-slate-500">Upload an upbeat instrumental loop to play between rounds.</p>}</div>
+              <div className="min-w-0 flex-1">
+                {!fileSource ? (
+                  <p className="text-sm text-amber-200/90">{BGM_SOURCES.find((b) => b.id === audio.bgmSource)?.hint}</p>
+                ) : bgmClip ? (
+                  <Scrubber slotId={BGM_ID} snap={snap} />
+                ) : (
+                  <p className="text-sm text-slate-500">Upload an upbeat instrumental loop, or pick a built-in festival beat below.</p>
+                )}
+              </div>
               <Waveform active={bgmPlaying} />
             </div>
-            <ClipDropZone slotId={BGM_ID} label="Background music" />
+            <div className="grid gap-2 sm:grid-cols-3">
+              {BGM_SOURCES.map((b) => (
+                <button
+                  key={b.id}
+                  type="button"
+                  onClick={() => run((d) => updateAudio(d, { bgmSource: b.id }))}
+                  className={`rounded-xl border px-3 py-2 text-left text-sm transition ${
+                    audio.bgmSource === b.id ? 'border-amber-400/70 bg-amber-400/10 text-amber-100' : 'border-slate-700 bg-slate-950/60 text-slate-300 hover:border-slate-500'
+                  }`}
+                >
+                  <span className="font-bengali block font-semibold">{b.bn}</span>
+                  <span className="block text-xs opacity-80">{b.en}</span>
+                </button>
+              ))}
+            </div>
+            {fileSource && <ClipDropZone slotId={BGM_ID} label="Background music" />}
             <div className="grid gap-4 sm:grid-cols-[1fr_auto] sm:items-end">
               <VolumeSlider label="BGM volume" value={audio.bgmVolume} onPreview={(v) => preview({ bgmVolume: v })} onCommit={(v) => run((d) => updateAudio(d, { bgmVolume: v }))} />
               <Toggle checked={audio.bgmLoop} onChange={(v) => run((d) => updateAudio(d, { bgmLoop: v }))} label="Loop" />
@@ -439,7 +486,7 @@ export function SoundboardView() {
           </Button>
         }
       >
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
           {SFX_IDS.map((id) => {
             const Icon = SFX_ICON[id];
             const active = snap.sfxActive[id];

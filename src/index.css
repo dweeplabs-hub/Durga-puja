@@ -3,6 +3,41 @@
 @theme {
   --font-sans: "Inter", "Noto Sans Bengali", "Hind Siliguri", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Nirmala UI", "Vrinda", sans-serif;
   --font-bengali: "Noto Sans Bengali", "Hind Siliguri", "Nirmala UI", "Vrinda", ui-sans-serif, sans-serif;
+
+  /*
+   * Kori festival palette. The app's accent scales are re-mapped so every
+   * existing accent picks up the Durga Puja look in one place:
+   *   violet  → kumkum / deep maroon (primary actions, focus, highlights)
+   *   fuchsia → terracotta (projector glows, welcome banner)
+   * Gold continues to come from Tailwind's amber scale.
+   */
+  --color-violet-50: #fdf2f2;
+  --color-violet-100: #fbe3e2;
+  --color-violet-200: #f6c3c0;
+  --color-violet-300: #f0a19b;
+  --color-violet-400: #e3766d;
+  --color-violet-500: #cc4a40;
+  --color-violet-600: #a82e27;
+  --color-violet-700: #8a221e;
+  --color-violet-800: #6e1b1a;
+  --color-violet-900: #571617;
+  --color-violet-950: #300909;
+
+  --color-fuchsia-50: #fdf4ee;
+  --color-fuchsia-100: #fbe4d4;
+  --color-fuchsia-200: #f5c3a3;
+  --color-fuchsia-300: #eda076;
+  --color-fuchsia-400: #e27b4b;
+  --color-fuchsia-500: #cf5f2e;
+  --color-fuchsia-600: #b44a22;
+  --color-fuchsia-700: #923b1f;
+  --color-fuchsia-800: #74311d;
+  --color-fuchsia-900: #5c2a1b;
+  --color-fuchsia-950: #33130b;
+
+  --color-kori-gold: #f5b82e;
+  --color-kori-maroon: #6e1b1a;
+  --color-kori-terracotta: #b44a22;
 }
 
 html,
@@ -64,4 +99,21 @@ input[type='number']::-webkit-outer-spin-button {
 
 .animate-eq {
   animation: eq 0.7s ease-in-out infinite;
+}
+
+/* Festive bunting: a maroon–terracotta band with hanging gold beads (alpana-style border). */
+.festive-strip {
+  height: 12px;
+  background:
+    radial-gradient(circle at 8px 5px, var(--color-kori-gold) 0 3.2px, transparent 3.7px) 0 0 / 16px 12px repeat-x,
+    linear-gradient(90deg, var(--color-kori-maroon), var(--color-kori-terracotta) 25%, var(--color-kori-maroon) 50%, var(--color-kori-terracotta) 75%, var(--color-kori-maroon)) 0 0 /
+      100% 5px no-repeat;
+}
+
+/* Gold-and-maroon double frame for festival panels. */
+.festive-frame {
+  box-shadow:
+    inset 0 0 0 1px rgb(245 184 46 / 0.28),
+    0 0 0 1px rgb(110 27 26 / 0.7),
+    0 0 0 4px rgb(110 27 26 / 0.25);
 }

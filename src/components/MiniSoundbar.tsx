@@ -3,6 +3,7 @@ import { ChevronDown, ChevronUp, Disc3, Drum, Megaphone, Music, OctagonX, Pause,
 import { useCompetition } from '../store';
 import { BGM_ID, audioEngine, formatTime, useAudioSnapshot } from '../audio/engine';
 import { readLocalFlag, writeLocalFlag } from '../lib/effects';
+import { KoriIcon } from './Kori';
 
 const OPEN_KEY = 'wac:soundbar-open';
 
@@ -17,7 +18,7 @@ export function MiniSoundbar() {
   };
   const nowPlaying = Object.entries(snap.playing).find(([id]) => id !== BGM_ID);
   const nowSlot = nowPlaying ? audio.slots.find((s) => s.id === nowPlaying[0]) : null;
-  const anything = Object.keys(snap.playing).length > 0 || Object.values(snap.sfxActive).some(Boolean);
+  const anything = Object.keys(snap.playing).length > 0 || Boolean(snap.synthBgm) || Object.values(snap.sfxActive).some(Boolean);
 
   const slotBtn = (id: string, label: string, Icon: typeof Megaphone) => {
     const slot = audio.slots.find((s) => s.id === id);
@@ -67,11 +68,18 @@ export function MiniSoundbar() {
           >
             <Trophy size={13} /> {audio.sfxLabels.FANFARE}
           </button>
-          {snap.clips[BGM_ID] && (
+          {(snap.clips[BGM_ID] || audio.bgmSource !== 'FILE') && (
             <button type="button" onClick={() => audioEngine.toggleBgm()} className="flex items-center gap-1.5 rounded-lg bg-slate-800 px-2.5 py-1.5 text-xs font-semibold text-slate-200 hover:bg-slate-700">
-              {snap.playing[BGM_ID] ? <Pause size={13} /> : <Music size={13} />} BGM
+              {snap.playing[BGM_ID] || snap.synthBgm ? <Pause size={13} /> : <Music size={13} />} {audio.bgmSource === 'DHAK' ? 'Dhak' : audio.bgmSource === 'CHIMES' ? 'Chimes' : 'BGM'}
             </button>
           )}
+          <button
+            type="button"
+            onClick={() => audioEngine.playSfx('KORI')}
+            className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold ${snap.sfxActive.KORI ? 'bg-amber-400 text-amber-950' : 'bg-slate-800 text-slate-200 hover:bg-slate-700'}`}
+          >
+            <KoriIcon size={13} /> {audio.sfxLabels.KORI}
+          </button>
           <button
             type="button"
             onClick={() => audioEngine.stopAll()}

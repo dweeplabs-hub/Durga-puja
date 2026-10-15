@@ -34,12 +34,12 @@ export function leaderboardCsv(ledger: LedgerResult): string {
       'Current Rank',
       'Participant ID',
       'Name',
-      'Starting Balance',
-      'Current Balance',
-      'Total Staked',
-      'Total Rewards',
-      'Outstanding Loan',
-      'Total Loan Repaid',
+      'Starting Koris',
+      'Current Koris',
+      'Total Koris Staked',
+      'Total Rewards (Koris)',
+      'Outstanding Kori Loan',
+      'Total Kori Loan Repaid',
       'Events Participated',
       'Performance Score',
       'Tie-Break Order',
@@ -51,7 +51,7 @@ export function leaderboardCsv(ledger: LedgerResult): string {
       p.name,
       p.startingBalance,
       p.currentBalance,
-      p.totalTokensStaked,
+      p.totalKorisStaked,
       p.totalRewardsEarned,
       p.outstandingLoan,
       p.totalLoanRepaid,
@@ -66,7 +66,7 @@ export function leaderboardCsv(ledger: LedgerResult): string {
 export function roundLedgerCsv(data: CompetitionData, ledger: LedgerResult): string {
   const names = new Map(data.participants.map((p) => [p.id, p.name]));
   const rows: unknown[][] = [
-    ['Event', 'Title', 'Status', 'Participant ID', 'Name', 'Participated', 'Stake', 'Placement', 'Gross Reward', 'Loan Repaid', 'Net Credited', 'Balance Before', 'Balance After'],
+    ['Event', 'Title', 'Status', 'Participant ID', 'Name', 'Participated', 'Kori Stake', 'Placement', 'Gross Reward (Koris)', 'Kori Loan Repaid', 'Net Koris Credited', 'Koris Before', 'Koris After'],
   ];
   for (const e of data.events) {
     for (const r of ledger.roundResults[e.eventNumber] ?? []) {
@@ -123,7 +123,7 @@ export function parseCsv(text: string): string[][] {
   return rows.filter((r) => r.some((c) => c.trim() !== ''));
 }
 
-/** Reads a roster CSV: either a "Name[,Starting Balance]" header or plain names. */
+/** Reads a roster CSV: either a "Name[,Starting Koris]" header (legacy "Starting Balance" also works) or plain names. */
 export function parseRosterCsv(text: string): { name: string; startingBalance?: number }[] {
   const rows = parseCsv(text);
   if (!rows.length) return [];

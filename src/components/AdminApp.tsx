@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { CalendarCheck, Crown, Disc3, Gavel, Languages, ListOrdered, Landmark, MonitorPlay, Presentation, Users } from 'lucide-react';
+import { CalendarCheck, Disc3, Gavel, Languages, ListOrdered, Landmark, MonitorPlay, Presentation, Users } from 'lucide-react';
 import { useCompetition } from '../store';
 import { EventOperations } from './EventOperations';
 import { LeaderboardView } from './LeaderboardView';
@@ -7,6 +7,7 @@ import { LoanDesk } from './LoanDesk';
 import { ParticipantsSettings } from './ParticipantsSettings';
 import { ProjectorView } from './ProjectorView';
 import { DataTools } from './DataTools';
+import { KoriIcon } from './Kori';
 import { SoundboardView } from './Soundboard';
 import { MiniSoundbar } from './MiniSoundbar';
 import { useAudioEngine, useAudioHotkeys, useCountdownCues } from '../audio/cues';
@@ -18,7 +19,7 @@ type Tab = 'operations' | 'leaderboard' | 'loans' | 'dj' | 'setup';
 const TABS: { id: Tab; label: string; icon: typeof Gavel }[] = [
   { id: 'operations', label: 'Event Operations', icon: Gavel },
   { id: 'leaderboard', label: 'Leaderboard & Master Table', icon: ListOrdered },
-  { id: 'loans', label: 'Loan Desk & Audit Log', icon: Landmark },
+  { id: 'loans', label: 'Kori Loan Desk & Audit Log', icon: Landmark },
   { id: 'dj', label: 'DJ & Soundboard', icon: Disc3 },
   { id: 'setup', label: 'Participants & Settings', icon: Users },
 ];
@@ -86,10 +87,11 @@ export function AdminApp() {
   return (
     <div className="min-h-screen">
       <header className="sticky top-0 z-30 border-b border-slate-800 bg-slate-950/90 backdrop-blur">
+        <div className="festive-strip" aria-hidden />
         <div className="mx-auto flex max-w-[1600px] flex-wrap items-center gap-4 px-4 py-3 lg:px-6">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 to-fuchsia-600 shadow-lg">
-              <Crown size={20} className="text-amber-300" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-violet-800 to-fuchsia-600 shadow-lg ring-1 ring-amber-400/40">
+              <KoriIcon size={24} filled className="text-amber-950" />
             </div>
             <div>
               <h1 className="text-lg font-extrabold leading-tight">
