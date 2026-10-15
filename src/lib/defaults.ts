@@ -13,14 +13,17 @@ export const DEFAULT_EVENT_TITLES = [
   'Grand Finale Showdown',
 ];
 
+/** Payout tiers the organizer awards each round: 6x, 5x, 4x, 3x, 2x, 1x. */
+export const DEFAULT_PAYOUT_TIERS = [6, 5, 4, 3, 2, 1];
+
 export function defaultSettings(): Settings {
   return {
     totalEvents: 10,
     startingBalance: 100,
     minStakePerEvent: 0,
     maxStakePerEvent: 50,
-    multipliers: { first: 4, second: 3, third: 2, others: 0 },
-    placementPoints: { first: 3, second: 2, third: 1 },
+    payoutTiers: [...DEFAULT_PAYOUT_TIERS],
+    othersMultiplier: 0,
     loanSettings: {
       fixedLoanTranche: 20,
       maxTotalLoanPerParticipant: 100,
@@ -114,7 +117,7 @@ export function makeEvent(eventNumber: number, settings: Settings): EventRound {
     status: 'UPCOMING',
     bids: {},
     participation: {},
-    placements: { first: [], second: [], third: [] },
+    awards: {},
     roundResults: [],
     biddingEndsAt: null,
     biddingDurationSec: settings.defaultBiddingSeconds,

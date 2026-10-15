@@ -18,14 +18,14 @@ import {
   Volume2,
   VolumeX,
 } from 'lucide-react';
-import type { EventRound, EventStatus, Participant, PlacementKey } from '../types';
+import type { EventRound, EventStatus, Participant } from '../types';
 import { useCompetition, useLedger } from '../store';
-import { computeLedger, maxStakeFor, placementOf } from '../lib/engine';
+import { awardGroups, awardOf, computeLedger, maxStakeFor } from '../lib/engine';
 import {
   advanceEvent,
   applyBidPresetToAll,
   bidErrors,
-  clearPlacements,
+  clearAwards,
   freezeScores,
   issueLoan,
   lockBidding,
@@ -37,7 +37,7 @@ import {
   resumeTimer,
   setBid,
   setParticipation,
-  setPlacement,
+  setAward,
   startTimer,
   unfreezeScores,
   updateAudio,
@@ -47,7 +47,7 @@ import {
 import { allowClosedCue, cue, cueBiddingClosed, cueKoriClink } from '../audio/cues';
 import { audioEngine, formatTime, useAudioSnapshot } from '../audio/engine';
 import { podiumConfetti, roundWinnerConfetti } from '../lib/effects';
-import { Badge, Button, Card, Field, Modal, NumberInput, PLACE_META, StatusBadge, inputClass, fmt } from './ui';
+import { Badge, Button, Card, Field, Modal, MultiplierBadge, NumberInput, StatusBadge, inputClass, fmt, tierStyle } from './ui';
 import { Countdown } from './Countdown';
 import { CorrectionModal } from './CorrectionModal';
 import { Kori, KoriIcon } from './Kori';
@@ -510,9 +510,11 @@ function StepConduct({ event }: { event: EventRound }) {
   const preview = useMemo(() => computeLedger(data, { previewEventNumber: event.eventNumber }), [data, event.eventNumber]);
   const previewResults = preview.roundResults[event.eventNumber] ?? [];
   const pot = previewResults.reduce((s, r) => s + r.stake, 0);
-  const placed = (['first', 'second', 'third'] as PlacementKey[]).flatMap((k) => event.placements[k].map((id) => ({ k, id })));
-  const m = data.settings.multipliers;
-  const mult: Record<PlacementKey, number> = { first: m.first, second: m.second, third: m.third };
+  const tiers = data.settings.payoutTiers;
+  const groups = awardGroups(event);
+  const awarded = groups.flatMap((g) => g.ids.map((id) => ({ m: g.multiplier, id })));
+  // Show the configured tiers plus any legacy multiplier already awarded in this round.
+  const tierButtons = [...new Set([...tiers, ...groups.map((g) => g.multiplier)])].sort((a, b) => b - a);
 
   return (
     <>
@@ -531,7 +533,7 @@ function StepConduct({ event }: { event: EventRound }) {
             </>
           }
         >
-          <p className="mb-3 text-sm text-slate-400">Stakes are locked and already deducted. Tap a placement for each finisher — dead heats are allowed (several players can share a place).</p>
+          <p className="mb-3 text-sm text-slate-400">Stakes are locked and already deducted. Tap a payout multiplier for each finisher (their own stake × the multiplier). Several players can share a multiplier; anyone without one loses their stake.</p>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="text-left text-xs uppercase tracking-wide text-slate-400">
@@ -539,13 +541,13 @@ function StepConduct({ event }: { event: EventRound }) {
                   <th className="px-2 py-2">Participant</th>
                   <th className="px-2 py-2 text-right">Locked Kori Stake</th>
                   <th className="px-2 py-2 text-right">Current Koris</th>
-                  <th className="px-2 py-2">Placement</th>
+                  <th className="px-2 py-2">Payout multiplier</th>
                 </tr>
               </thead>
               <tbody>
                 {ledger.participants.map((p) => {
                   const participating = event.participation[p.id] !== false;
-                  const place = placementOf(event, p.id);
+                  const award = awardOf(event, p.id);
                   return (
                     <tr key={p.id} className={`border-t border-slate-800 ${!participating ? 'opacity-40' : ''}`}>
                       <td className="px-2 py-2">
@@ -561,16 +563,18 @@ function StepConduct({ event }: { event: EventRound }) {
                       <td className="px-2 py-2">
                         {participating ? (
                           <div className="flex gap-1">
-                            {(['first', 'second', 'third'] as PlacementKey[]).map((k) => (
+                            {tierButtons.map((m) => (
                               <button
-                                key={k}
+                                key={m}
                                 type="button"
-                                onClick={() => run((d) => setPlacement(d, event.eventNumber, p.id, place === k ? null : k))}
-                                className={`rounded-lg px-2.5 py-1 text-xs font-bold transition ${
-                                  place === k ? `${PLACE_META[k].bg} text-slate-950 ring-2 ${PLACE_META[k].ring}` : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                                aria-pressed={award === m}
+                                aria-label={`Award ${m}x to ${p.name}`}
+                                onClick={() => run((d) => setAward(d, event.eventNumber, p.id, award === m ? null : m))}
+                                className={`min-w-9 rounded-lg px-1.5 py-1.5 text-sm font-black tabular transition ${
+                                  award === m ? `${tierStyle(m, tiers).solid} ring-2` : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
                                 }`}
                               >
-                                {PLACE_META[k].emoji} {PLACE_META[k].label} ×{mult[k]}
+                                {m}x
                               </button>
                             ))}
                           </div>
@@ -586,16 +590,17 @@ function StepConduct({ event }: { event: EventRound }) {
           </div>
         </Card>
 
-        <Card title="Podium & Payout Preview" icon={<Crown size={18} className="text-amber-400" />} className="xl:sticky xl:top-36 xl:self-start">
-          {(['first', 'second', 'third'] as PlacementKey[]).map((k) => (
+        <Card title="Payout Preview" icon={<Crown size={18} className="text-amber-400" />} className="xl:sticky xl:top-36 xl:self-start">
+          {groups.length === 0 && (
+            <p className="mb-4 rounded-lg border border-dashed border-slate-700 px-3 py-4 text-center text-sm text-slate-500">No multipliers awarded yet</p>
+          )}
+          {groups.map(({ multiplier: k, ids }) => (
             <div key={k} className="mb-4">
-              <p className={`mb-1 text-sm font-bold ${PLACE_META[k].text}`}>
-                {PLACE_META[k].emoji} {PLACE_META[k].long} · ×{mult[k]}
+              <p className={`mb-1 text-sm font-bold ${tierStyle(k, tiers).text}`}>
+                <MultiplierBadge m={k} tiers={tiers} /> {ids.length > 1 ? `${ids.length} players` : '1 player'}
               </p>
-              {event.placements[k].length === 0 ? (
-                <p className="rounded-lg border border-dashed border-slate-700 px-3 py-2 text-xs text-slate-500">Not assigned</p>
-              ) : (
-                event.placements[k].map((id) => {
+              {(
+                ids.map((id) => {
                   const r = previewResults.find((x) => x.participantId === id);
                   const name = data.participants.find((p) => p.id === id)?.name ?? id;
                   if (!r) return null;
@@ -629,10 +634,10 @@ function StepConduct({ event }: { event: EventRound }) {
               </p>
             ))}
           <div className="flex flex-col gap-2 border-t border-slate-800 pt-4">
-            <Button variant="success" size="lg" disabled={event.placements.first.length === 0} onClick={() => setConfirming(true)}>
+            <Button variant="success" size="lg" disabled={groups.length === 0} onClick={() => setConfirming(true)}>
               <Trophy size={18} /> Publish Results & Update Leaderboard
             </Button>
-            <Button size="sm" variant="ghost" disabled={placed.length === 0} onClick={() => run((d) => clearPlacements(d, event.eventNumber))}>
+            <Button size="sm" variant="ghost" disabled={awarded.length === 0} onClick={() => run((d) => clearAwards(d, event.eventNumber))}>
               Clear selections
             </Button>
           </div>
@@ -666,12 +671,12 @@ function StepConduct({ event }: { event: EventRound }) {
         }
       >
         <ul className="space-y-1 text-sm">
-          {placed.map(({ k, id }) => {
+          {awarded.map(({ m, id }) => {
             const r = previewResults.find((x) => x.participantId === id);
             return (
-              <li key={id} className="flex justify-between">
-                <span>
-                  {PLACE_META[k].emoji} {data.participants.find((p) => p.id === id)?.name}
+              <li key={id} className="flex justify-between gap-3">
+                <span className="flex items-center gap-2">
+                  <MultiplierBadge m={m} tiers={tiers} /> {data.participants.find((p) => p.id === id)?.name}
                 </span>
                 <span className="tabular">
                   gross {fmt(r?.grossReward ?? 0)} · net +{fmt(r?.netCredited ?? 0)}
@@ -680,7 +685,7 @@ function StepConduct({ event }: { event: EventRound }) {
             );
           })}
         </ul>
-        <p className="mt-3 text-xs text-slate-400">All other participants lose their stake. You can still correct the result later through an audited correction.</p>
+        <p className="mt-3 text-xs text-slate-400">Everyone without a multiplier loses their stake. You can still correct the result later through an audited correction.</p>
       </Modal>
     </>
   );
@@ -704,6 +709,8 @@ function StepSummary({ event, onSelect }: { event: EventRound; onSelect: (n: num
   const isCurrent = event.eventNumber === data.currentEventNumber;
   const isLast = event.eventNumber === data.settings.totalEvents;
   const corrections = data.auditLog.filter((a) => a.type === 'RESULT_CORRECTION' && a.eventNumber === event.eventNumber).length;
+  const tiers = data.settings.payoutTiers;
+  const groups = awardGroups(event);
 
   return (
     <>
@@ -719,14 +726,14 @@ function StepSummary({ event, onSelect }: { event: EventRound; onSelect: (n: num
           </>
         }
       >
-        <div className="grid gap-4 md:grid-cols-3">
-          {(['first', 'second', 'third'] as PlacementKey[]).map((k) => (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {groups.length === 0 && <p className="text-slate-500">No multipliers were awarded this round.</p>}
+          {groups.map(({ multiplier: k, ids }) => (
             <div key={k} className="rounded-xl border border-slate-800 bg-slate-950 p-4">
-              <p className={`text-sm font-bold ${PLACE_META[k].text}`}>
-                {PLACE_META[k].emoji} {PLACE_META[k].long}
+              <p className={`text-sm font-bold ${tierStyle(k, tiers).text}`}>
+                <MultiplierBadge m={k} tiers={tiers} /> payout
               </p>
-              {event.placements[k].length === 0 && <p className="mt-1 text-slate-500">—</p>}
-              {event.placements[k].map((id) => {
+              {ids.map((id) => {
                 const r = results.find((x) => x.participantId === id);
                 return (
                   <div key={id} className="mt-1">
@@ -757,7 +764,7 @@ function StepSummary({ event, onSelect }: { event: EventRound; onSelect: (n: num
                   <th className="px-2 py-1">Participant</th>
                   <th className="px-2 py-1 text-right">Koris before</th>
                   <th className="px-2 py-1 text-right">Stake</th>
-                  <th className="px-2 py-1">Place</th>
+                  <th className="px-2 py-1">Multiplier</th>
                   <th className="px-2 py-1 text-right">Gross</th>
                   <th className="px-2 py-1 text-right">Kori Loan repaid</th>
                   <th className="px-2 py-1 text-right">Net credited</th>
@@ -770,7 +777,7 @@ function StepSummary({ event, onSelect }: { event: EventRound; onSelect: (n: num
                     <td className="px-2 py-1">{names.get(r.participantId)}</td>
                     <td className="px-2 py-1 text-right">{fmt(r.balanceBefore)}</td>
                     <td className="px-2 py-1 text-right">{r.participated ? fmt(r.stake) : '—'}</td>
-                    <td className="px-2 py-1">{r.placement ? PLACE_META[r.placement].label : ''}</td>
+                    <td className="px-2 py-1">{r.award ? <MultiplierBadge m={r.award} tiers={tiers} /> : ''}</td>
                     <td className="px-2 py-1 text-right">{fmt(r.grossReward)}</td>
                     <td className="px-2 py-1 text-right">{fmt(r.loanRepaid)}</td>
                     <td className="px-2 py-1 text-right">{fmt(r.netCredited)}</td>

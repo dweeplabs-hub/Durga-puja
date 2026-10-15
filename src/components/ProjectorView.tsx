@@ -5,13 +5,13 @@ import { podiumConfetti, readLocalFlag, roundWinnerConfetti, writeLocalFlag } fr
 import { LeaderboardTable } from './LeaderboardTable';
 import { Podium } from './Podium';
 import { Countdown } from './Countdown';
-import { PLACE_META, fmt } from './ui';
+import { MultiplierBadge, fmt } from './ui';
+import { awardGroups } from '../lib/engine';
 import { STATUS_TEXT, bnNum } from '../lib/i18n';
 import { Bi } from './Bi';
 import { KoriIcon } from './Kori';
 import { brandTitle } from '../lib/branding';
 import { setProjectorLanguage } from '../lib/operations';
-import type { PlacementKey } from '../types';
 
 const SOUND_KEY = 'wac:projector-sound';
 
@@ -169,13 +169,13 @@ export function ProjectorView({ onClose }: { onClose?: () => void }) {
                   </p>
                   <h3 className="mt-1 text-xl font-bold">{summaryEvent.title}</h3>
                   <ul className="mt-4 space-y-3">
-                    {(['first', 'second', 'third'] as PlacementKey[]).flatMap((k) =>
-                      summaryEvent.placements[k].map((id) => {
+                    {awardGroups(summaryEvent).flatMap(({ multiplier: k, ids }) =>
+                      ids.map((id) => {
                         const r = summaryResults.find((x) => x.participantId === id);
                         return (
                           <li key={`${k}-${id}`} className="flex items-center justify-between gap-3 rounded-xl bg-white/5 px-4 py-3">
                             <span className="flex items-center gap-3 text-2xl font-bold">
-                              <span>{PLACE_META[k].emoji}</span>
+                              <MultiplierBadge m={k} tiers={data.settings.payoutTiers} className="px-2 py-1 text-lg" />
                               {names.get(id) ?? id}
                             </span>
                             <span className="text-xl font-bold text-emerald-300 tabular">+{fmt(r?.grossReward ?? 0)}</span>
@@ -205,14 +205,12 @@ export function ProjectorView({ onClose }: { onClose?: () => void }) {
                     </span>
                   ))}
                 </div>
-                <p className="mt-3 text-sm text-slate-400">
-                  {bi && (
-                    <span className="block">
-                      ১ম ×{bnNum(data.settings.multipliers.first)} · ২য় ×{bnNum(data.settings.multipliers.second)} · ৩য় ×{bnNum(data.settings.multipliers.third)} (নিজের বাজির উপর)
-                    </span>
-                  )}
-                  1st ×{data.settings.multipliers.first} · 2nd ×{data.settings.multipliers.second} · 3rd ×{data.settings.multipliers.third} of own stake
-                </p>
+                <div className="mt-3 flex flex-wrap items-center gap-1.5 text-sm text-slate-400">
+                  {data.settings.payoutTiers.map((m) => (
+                    <MultiplierBadge key={m} m={m} tiers={data.settings.payoutTiers} />
+                  ))}
+                  <span className="ml-1">{bi ? <span className="font-bengali">নিজের বাজির উপর · </span> : null}of own stake</span>
+                </div>
               </div>
             </aside>
           </main>

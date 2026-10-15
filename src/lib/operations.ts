@@ -6,13 +6,11 @@ import type {
   CompetitionData,
   EventRound,
   ParticipantBase,
-  PlacementKey,
-  Placements,
   ProjectorLanguage,
   Settings,
 } from '../types';
-import { computeLedger, maxStakeFor, placementOf, validateBid } from './engine';
-import { DEMO_NAMES, defaultBranding, defaultSettings, emptyCompetition, makeEvent, nextParticipantId, normaliseAudioConfig, uid } from './defaults';
+import { awardGroups, awardOf, computeLedger, maxStakeFor, validateBid } from './engine';
+import { DEFAULT_PAYOUT_TIERS, DEMO_NAMES, defaultBranding, defaultSettings, emptyCompetition, makeEvent, nextParticipantId, normaliseAudioConfig, uid } from './defaults';
 
 /** Thrown when an operation violates competition rules; message is shown to the organizer. */
 export class OpError extends Error {}
@@ -78,8 +76,12 @@ export function updateSettings(d: Data, next: Settings): Data {
   assertNum(next.minStakePerEvent, 'Min Kori Stake');
   assertNum(next.maxStakePerEvent, 'Max Kori Stake', 1);
   if (next.minStakePerEvent > next.maxStakePerEvent) fail('Min Kori Stake cannot exceed Max Kori Stake');
-  for (const [k, v] of Object.entries(next.multipliers)) assertNum(v, `Multiplier (${k})`);
-  for (const [k, v] of Object.entries(next.placementPoints)) assertNum(v, `Points (${k})`);
+  if (!Array.isArray(next.payoutTiers) || next.payoutTiers.length === 0) fail('Add at least one payout multiplier');
+  if (next.payoutTiers.length > 10) fail('Use at most 10 payout multipliers');
+  for (const m of next.payoutTiers) if (!Number.isFinite(m) || m <= 0) fail('Payout multipliers must be positive numbers');
+  if (new Set(next.payoutTiers).size !== next.payoutTiers.length) fail('Payout multipliers must all be different');
+  assertNum(next.othersMultiplier, 'Multiplier for players without an award');
+  next = { ...next, payoutTiers: [...next.payoutTiers].sort((a, b) => b - a) };
   assertNum(next.loanSettings.fixedLoanTranche, 'Kori Loan tranche', 1);
   assertNum(next.loanSettings.maxTotalLoanPerParticipant, 'Max Kori Loan', 0);
   assertNum(next.loanSettings.repaymentRatePercent, 'Repayment rate');
@@ -232,11 +234,7 @@ export function removeParticipant(d: Data, id: string): Data {
       ...e,
       bids: strip(e.bids),
       participation: strip(e.participation),
-      placements: {
-        first: e.placements.first.filter((x) => x !== id),
-        second: e.placements.second.filter((x) => x !== id),
-        third: e.placements.third.filter((x) => x !== id),
-      },
+      awards: strip(e.awards),
     })),
   };
 }
@@ -365,38 +363,32 @@ export function lockBidding(d: Data, n: number): Data {
   return patchEvent(d, n, { status: 'IN_PROGRESS', bids, lockedAt: nowIso(), biddingEndsAt: null, biddingPausedRemainingMs: null });
 }
 
-function withPlacement(placements: Placements, participantId: string, place: PlacementKey | null): Placements {
-  const next: Placements = {
-    first: placements.first.filter((x) => x !== participantId),
-    second: placements.second.filter((x) => x !== participantId),
-    third: placements.third.filter((x) => x !== participantId),
-  };
-  if (place) next[place] = [...next[place], participantId];
-  return next;
-}
-
-export function setPlacement(d: Data, n: number, participantId: string, place: PlacementKey | null): Data {
+/** Awards (or with `multiplier = null`, clears) a payout multiplier for one participant. */
+export function setAward(d: Data, n: number, participantId: string, multiplier: number | null): Data {
   const e = getEvent(d, n);
-  if (e.status !== 'IN_PROGRESS') fail('Winners can be selected only while the event is in progress');
+  if (e.status !== 'IN_PROGRESS') fail('Multipliers can be awarded only while the event is in progress');
   if (e.participation[participantId] === false) fail(`${nameOf(d, participantId)} is not participating in this event`);
-  return patchEvent(d, n, { placements: withPlacement(e.placements, participantId, place) });
+  const { [participantId]: _old, ...rest } = e.awards;
+  void _old;
+  if (multiplier !== null && (!Number.isFinite(multiplier) || multiplier <= 0)) fail('Invalid multiplier');
+  return patchEvent(d, n, { awards: multiplier === null ? rest : { ...rest, [participantId]: multiplier } });
 }
 
-export function clearPlacements(d: Data, n: number): Data {
+export function clearAwards(d: Data, n: number): Data {
   const e = getEvent(d, n);
   if (e.status !== 'IN_PROGRESS') fail('Event is not in progress');
-  return patchEvent(d, n, { placements: { first: [], second: [], third: [] } });
+  return patchEvent(d, n, { awards: {} });
 }
 
-function describePlacements(d: Data, p: Placements): string {
-  const fmt = (ids: string[]) => (ids.length ? ids.map((id) => nameOf(d, id)).join(' & ') : '—');
-  return `1st: ${fmt(p.first)}; 2nd: ${fmt(p.second)}; 3rd: ${fmt(p.third)}`;
+function describeAwards(d: Data, e: EventRound): string {
+  const groups = awardGroups(e);
+  return groups.length ? groups.map((g) => `${g.multiplier}x: ${g.ids.map((id) => nameOf(d, id)).join(' & ')}`).join('; ') : 'No awards';
 }
 
 export function publishResults(d: Data, n: number): Data {
   const e = getEvent(d, n);
   if (e.status !== 'IN_PROGRESS') fail('Event is not in progress');
-  if (e.placements.first.length === 0) fail('Select at least one 1st place winner before publishing');
+  if (awardGroups(e).length === 0) fail('Award at least one multiplier (6x … 1x) before publishing');
   let next = patchEvent(d, n, { status: 'COMPLETED', completedAt: nowIso() });
   const ledger = computeLedger(next);
   const rr = ledger.roundResults[n] ?? [];
@@ -407,7 +399,7 @@ export function publishResults(d: Data, n: number): Data {
     type: 'ROUND_COMPLETED',
     eventNumber: n,
     reason: 'Results published',
-    details: `${describePlacements(d, e.placements)}. Staked ${staked}, gross rewards ${won}, loans repaid ${repaid}.`,
+    details: `${describeAwards(d, e)}. Staked ${staked}, gross rewards ${won}, loans repaid ${repaid}.`,
   });
   return next;
 }
@@ -437,22 +429,18 @@ export function unfreezeScores(d: Data, reason: string): Data {
 export interface RoundCorrection {
   bids: Record<string, number>;
   participation: Record<string, boolean>;
-  placements: Placements;
+  awards: Record<string, number>;
 }
 
 export function correctRound(d: Data, n: number, correction: RoundCorrection, reason: string): Data {
   const e = getEvent(d, n);
   if (e.status !== 'IN_PROGRESS' && e.status !== 'COMPLETED') fail('Only locked or completed rounds can be corrected');
   if (!reason.trim()) fail('A correction reason is required for the audit log');
-  const seen = new Set<string>();
-  for (const ids of [correction.placements.first, correction.placements.second, correction.placements.third]) {
-    for (const id of ids) {
-      if (seen.has(id)) fail(`${nameOf(d, id)} is assigned to more than one placement`);
-      seen.add(id);
-      if (correction.participation[id] === false) fail(`${nameOf(d, id)} is placed but marked as not participating`);
-    }
+  for (const [id, m] of Object.entries(correction.awards)) {
+    if (!Number.isFinite(m) || m <= 0) fail(`Invalid multiplier for ${nameOf(d, id)}`);
+    if (correction.participation[id] === false) fail(`${nameOf(d, id)} has an award but is marked as not participating`);
   }
-  if (e.status === 'COMPLETED' && correction.placements.first.length === 0) fail('A completed round needs at least one 1st place winner');
+  if (e.status === 'COMPLETED' && Object.keys(correction.awards).length === 0) fail('A completed round needs at least one award');
   for (const [id, b] of Object.entries(correction.bids)) {
     if (!Number.isFinite(b) || b < 0) fail(`Invalid stake for ${nameOf(d, id)}`);
     if (b > d.settings.maxStakePerEvent && correction.participation[id] !== false) fail(`${nameOf(d, id)}'s stake exceeds the Max Kori Stake of ${d.settings.maxStakePerEvent}`);
@@ -461,7 +449,7 @@ export function correctRound(d: Data, n: number, correction: RoundCorrection, re
   const before = computeLedger(d);
   const bids: Record<string, number> = {};
   for (const p of d.participants) bids[p.id] = correction.participation[p.id] === false ? 0 : (correction.bids[p.id] ?? 0);
-  const next = patchEvent(d, n, { bids, participation: { ...correction.participation }, placements: correction.placements });
+  const next = patchEvent(d, n, { bids, participation: { ...correction.participation }, awards: { ...correction.awards } });
   const after = computeLedger(next);
 
   const changes: string[] = [];
@@ -472,9 +460,9 @@ export function correctRound(d: Data, n: number, correction: RoundCorrection, re
     if ((e.participation[p.id] !== false) !== (correction.participation[p.id] !== false)) {
       changes.push(`${p.name} ${correction.participation[p.id] === false ? 'withdrawn' : 'reinstated'}`);
     }
-    const op = placementOf(e, p.id);
-    const np = placementOf({ ...e, placements: correction.placements }, p.id);
-    if (op !== np) changes.push(`${p.name} placement ${op ?? 'none'}→${np ?? 'none'}`);
+    const oa = awardOf(e, p.id);
+    const na = awardOf({ ...e, awards: correction.awards }, p.id);
+    if (oa !== na) changes.push(`${p.name} award ${oa ? `${oa}x` : 'none'}→${na ? `${na}x` : 'none'}`);
   }
   if (changes.length === 0) fail('No changes were made');
   const balanceDiffs = after.participants
@@ -600,7 +588,7 @@ export function buildDemo(simulatedRounds = 0, seed = 2026): Data {
     // Organizer tops up anyone running low before bidding.
     let ledger = computeLedger(d);
     for (const p of ledger.participants) {
-      if (p.currentBalance < 15 && loanHeadroom(d, p.id) >= d.settings.loanSettings.fixedLoanTranche) {
+      if (p.currentBalance < 30 && loanHeadroom(d, p.id) >= d.settings.loanSettings.fixedLoanTranche) {
         d = issueLoan(d, p.id, d.settings.loanSettings.fixedLoanTranche);
       }
     }
@@ -608,16 +596,16 @@ export function buildDemo(simulatedRounds = 0, seed = 2026): Data {
     ledger = computeLedger(d);
     for (const p of ledger.participants) {
       const cap = maxStakeFor(p.currentBalance, d.settings);
+      // Bold bidding: most players stake at least half of what they may, often all of it.
       const steps = Math.floor(cap / 5);
-      const bid = Math.max(Math.min(d.settings.minStakePerEvent, cap), 5 * Math.max(1, Math.floor(rand() * steps) + (rand() > 0.6 ? 1 : 0)));
-      d = setBid(d, n, p.id, Math.min(cap, bid));
+      const bid = rand() > 0.55 ? cap : 5 * Math.max(1, Math.ceil(steps / 2) + Math.floor(rand() * (steps / 2 + 1)));
+      d = setBid(d, n, p.id, Math.max(Math.min(d.settings.minStakePerEvent, cap), Math.min(cap, bid)));
     }
     d = lockBidding(d, n);
     const pool = [...d.participants.map((p) => p.id)];
     const pick = () => pool.splice(Math.floor(rand() * pool.length), 1)[0];
-    d = setPlacement(d, n, pick(), 'first');
-    d = setPlacement(d, n, pick(), 'second');
-    d = setPlacement(d, n, pick(), 'third');
+    // Six finishers get one tier each (6x … 1x); everyone else loses their stake.
+    for (const m of d.settings.payoutTiers) d = setAward(d, n, pick(), m);
     d = publishResults(d, n);
     if (r < simulatedRounds - 1 && d.currentEventNumber < d.settings.totalEvents) d = advanceEvent(d);
   }
@@ -638,6 +626,37 @@ function migrateLoanSettings(base: Settings['loanSettings'], saved: Partial<Sett
   };
 }
 
+interface LegacyMultipliers {
+  first?: number;
+  second?: number;
+  third?: number;
+  others?: number;
+}
+interface LegacyPlacements {
+  first?: string[];
+  second?: string[];
+  third?: string[];
+}
+
+/**
+ * Converts old 1st/2nd/3rd placements into multiplier awards using the multipliers
+ * that were in force (default 4x/3x/2x), so past payouts stay exactly the same.
+ */
+function migrateAwards(e: Partial<EventRound> & { placements?: LegacyPlacements }, legacy: LegacyMultipliers | undefined): Record<string, number> {
+  if (e.awards && typeof e.awards === 'object') return { ...e.awards };
+  const awards: Record<string, number> = {};
+  const p = e.placements;
+  if (!p) return awards;
+  const tiers: [string[] | undefined, number][] = [
+    [p.third, legacy?.third ?? 2],
+    [p.second, legacy?.second ?? 3],
+    [p.first, legacy?.first ?? 4],
+  ];
+  // Applied lowest first so a (corrupt) double entry keeps its highest placement.
+  for (const [ids, m] of tiers) for (const id of ids ?? []) if (m > 0) awards[id] = m;
+  return awards;
+}
+
 /** Validates and normalises an imported JSON backup. */
 export function parseBackup(raw: unknown): Data {
   if (!raw || typeof raw !== 'object') fail('Backup file is not a JSON object');
@@ -645,21 +664,32 @@ export function parseBackup(raw: unknown): Data {
   const src = (obj.data && typeof obj.data === 'object' ? obj.data : obj) as Partial<Data>;
   if (!Array.isArray(src.participants) || !Array.isArray(src.events) || !src.settings) fail('Backup is missing participants, events or settings');
   const base = defaultSettings();
-  const { eventName: legacyName, ...savedSettings } = src.settings as Settings & { eventName?: string };
+  // Pre-v5 saves used fixed 1st/2nd/3rd placements with `multipliers` + `placementPoints`.
+  const {
+    eventName: legacyName,
+    multipliers: legacyMultipliers,
+    placementPoints: _legacyPoints,
+    ...savedSettings
+  } = src.settings as Settings & { eventName?: string; multipliers?: LegacyMultipliers; placementPoints?: unknown };
+  void _legacyPoints;
   const settings: Settings = {
     ...base,
     ...savedSettings,
-    multipliers: { ...base.multipliers, ...src.settings.multipliers },
-    placementPoints: { ...base.placementPoints, ...src.settings.placementPoints },
+    payoutTiers: Array.isArray(savedSettings.payoutTiers) && savedSettings.payoutTiers.length ? savedSettings.payoutTiers : [...DEFAULT_PAYOUT_TIERS],
+    othersMultiplier: Number(savedSettings.othersMultiplier ?? legacyMultipliers?.others ?? 0),
     loanSettings: migrateLoanSettings(base.loanSettings, src.settings.loanSettings),
   };
-  const events: EventRound[] = src.events.map((e, i) => ({
+  const events: EventRound[] = src.events.map((raw, i) => {
+    const { placements: _legacyPlacements, ...e } = raw as EventRound & { placements?: LegacyPlacements };
+    void _legacyPlacements;
+    return {
     ...makeEvent(i + 1, settings),
     ...e,
-    placements: { first: e.placements?.first ?? [], second: e.placements?.second ?? [], third: e.placements?.third ?? [] },
+    awards: migrateAwards(raw as EventRound & { placements?: LegacyPlacements }, legacyMultipliers),
     bids: e.bids ?? {},
     participation: e.participation ?? {},
-  }));
+  };
+  });
   if (events.length !== settings.totalEvents) fail('Backup event count does not match its settings');
   const branding = { ...defaultBranding(), ...src.branding };
   if (!src.branding && legacyName && legacyName !== "Women's Auction Challenge" && legacyName !== 'Mojar Mohajuddho') branding.titleEn = legacyName;

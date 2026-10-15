@@ -21,8 +21,8 @@ The game currency is **Koris (কড়ি)**, the traditional cowrie shell. In 
 
 ## How it works
 
-- **Source of truth** (`src/types.ts → CompetitionData`): settings, roster, events (bids, participation, placements), loan log, manual adjustments and the audit log. Zustand saves it to `localStorage` after every change, so refreshing the browser loses nothing.
-- **Ledger engine** (`src/lib/engine.ts`): a deterministic replay from Event 1 that applies loans and adjustments, deducts stakes at lock, pays stake × multiplier, takes the automatic loan repayment and awards placement points. Every leaderboard field is derived from it, so correcting a past round re-evaluates everything after it.
+- **Source of truth** (`src/types.ts → CompetitionData`): settings, roster, events (bids, participation, multiplier awards), loan log, manual adjustments and the audit log. Zustand saves it to `localStorage` after every change, so refreshing the browser loses nothing.
+- **Ledger engine** (`src/lib/engine.ts`): a deterministic replay from Event 1 that applies loans and adjustments, deducts stakes at lock, pays stake × the awarded multiplier (**6x, 5x, 4x, 3x, 2x or 1x** by default; players with no award lose their stake), takes the automatic loan repayment and adds performance points equal to the multiplier. Every leaderboard field is derived from it, so correcting a past round re-evaluates everything after it.
 - **Operations** (`src/lib/operations.ts`): pure, rule-checked state transitions (open bidding → lock stakes → publish → advance → freeze). The UI only calls these.
 - **Ranking**: higher balance → lower outstanding loan → higher performance score, then total rewards → manual tie-break challenge order. The leaderboard shows which tier settled each tie.
 - **Kori Loan (কড়ি ধার) repayment**: by default `floor(gross × 2%)`, capped at the outstanding principal. A 100-kori reward repays 2 and credits 98 (covered by a test). Settings add exact 2-decimal mode, a minimum 1-kori deduction, and an option to deduct unpaid loans when scores are frozen.

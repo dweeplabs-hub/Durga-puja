@@ -17,7 +17,7 @@ import {
   updateSettings,
 } from '../lib/operations';
 import { parseRosterCsv } from '../lib/exporters';
-import { Badge, Button, Card, Field, NumberInput, Toggle, inputClass, fmt } from './ui';
+import { Badge, Button, Card, Field, MultiplierBadge, NumberInput, Toggle, inputClass, fmt } from './ui';
 import { DataTools } from './DataTools';
 
 export function ParticipantsSettings() {
@@ -227,17 +227,16 @@ function SettingsCard() {
       </div>
 
       <p className="mb-2 mt-6 text-xs font-semibold uppercase tracking-wider text-slate-400">Payout multipliers (total returned incl. stake)</p>
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        {num('1st place ×', draft.multipliers.first, (n) => set('multipliers', { ...draft.multipliers, first: n }), undefined, 0.5)}
-        {num('2nd place ×', draft.multipliers.second, (n) => set('multipliers', { ...draft.multipliers, second: n }), undefined, 0.5)}
-        {num('3rd place ×', draft.multipliers.third, (n) => set('multipliers', { ...draft.multipliers, third: n }), undefined, 0.5)}
-        {num('Others ×', draft.multipliers.others, (n) => set('multipliers', { ...draft.multipliers, others: n }), undefined, 0.5)}
+      <div className="grid gap-4 sm:grid-cols-[1fr_10rem]">
+        <Field label="Multiplier buttons" hint="Comma-separated, e.g. 6, 5, 4, 3, 2, 1. Points for tie-breaker #3 equal the multiplier awarded.">
+          <TiersInput value={draft.payoutTiers} disabled={locked} onChange={(t) => set('payoutTiers', t)} />
+        </Field>
+        {num('No award ×', draft.othersMultiplier, (n) => set('othersMultiplier', n), '0 = stake is lost', 0.5)}
       </div>
-      <p className="mb-2 mt-6 text-xs font-semibold uppercase tracking-wider text-slate-400">Performance points (tie-breaker #3)</p>
-      <div className="grid grid-cols-3 gap-4">
-        {num('1st', draft.placementPoints.first, (n) => set('placementPoints', { ...draft.placementPoints, first: n }))}
-        {num('2nd', draft.placementPoints.second, (n) => set('placementPoints', { ...draft.placementPoints, second: n }))}
-        {num('3rd', draft.placementPoints.third, (n) => set('placementPoints', { ...draft.placementPoints, third: n }))}
+      <div className="mt-2 flex flex-wrap gap-1">
+        {[...draft.payoutTiers].sort((a, b) => b - a).map((m) => (
+          <MultiplierBadge key={m} m={m} tiers={draft.payoutTiers} />
+        ))}
       </div>
 
       <p className="mb-2 mt-6 text-xs font-semibold uppercase tracking-wider text-slate-400">Loans</p>
@@ -344,5 +343,34 @@ function BrandingCard() {
         </Button>
       </div>
     </Card>
+  );
+}
+
+/** Comma-separated list of payout multipliers; parsed when the field loses focus. */
+function TiersInput({ value, onChange, disabled }: { value: number[]; onChange: (t: number[]) => void; disabled?: boolean }) {
+  const shown = value.join(', ');
+  const [text, setText] = useState(shown);
+  const [last, setLast] = useState(shown);
+  if (shown !== last) {
+    setLast(shown);
+    setText(shown);
+  }
+  return (
+    <input
+      className={`${inputClass} tabular`}
+      value={text}
+      disabled={disabled}
+      aria-label="Payout multipliers"
+      onChange={(e) => setText(e.target.value)}
+      onBlur={() => {
+        const parsed = text
+          .split(/[\s,]+/)
+          .map((x) => Number(x.replace(/x$/i, '')))
+          .filter((n) => Number.isFinite(n) && n > 0);
+        const unique = [...new Set(parsed)].sort((a, b) => b - a);
+        if (unique.length) onChange(unique);
+        else setText(shown);
+      }}
+    />
   );
 }

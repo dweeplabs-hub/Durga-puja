@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
 import { AlertTriangle, ArrowRight } from 'lucide-react';
-import type { EventRound, PlacementKey, Placements } from '../types';
+import type { EventRound } from '../types';
 import { useCompetition } from '../store';
-import { computeLedger, placementOf } from '../lib/engine';
+import { awardOf, computeLedger } from '../lib/engine';
 import { OpError, correctRound, type RoundCorrection } from '../lib/operations';
 import { Button, Field, Modal, NumberInput, inputClass, fmt } from './ui';
 
@@ -31,15 +31,11 @@ export function CorrectionModal({ event, open, onClose }: { event: EventRound; o
     }
   }, [data, draft, event.eventNumber, reason]);
 
-  const setPlace = (id: string, place: PlacementKey | null) => {
+  const setAward = (id: string, multiplier: number | null) => {
     setDraft((d) => {
-      const placements: Placements = {
-        first: d.placements.first.filter((x) => x !== id),
-        second: d.placements.second.filter((x) => x !== id),
-        third: d.placements.third.filter((x) => x !== id),
-      };
-      if (place) placements[place] = [...placements[place], id];
-      return { ...d, placements };
+      const { [id]: _old, ...rest } = d.awards;
+      void _old;
+      return { ...d, awards: multiplier === null ? rest : { ...rest, [id]: multiplier } };
     });
   };
 
@@ -49,6 +45,8 @@ export function CorrectionModal({ event, open, onClose }: { event: EventRound; o
   };
 
   const isCompleted = event.status === 'COMPLETED';
+  // Configured tiers plus any multiplier already used in this round (e.g. legacy 4x/3x/2x results).
+  const tierOptions = [...new Set([...data.settings.payoutTiers, ...Object.values(draft.awards)])].sort((x, y) => y - x);
 
   return (
     <Modal
@@ -81,13 +79,13 @@ export function CorrectionModal({ event, open, onClose }: { event: EventRound; o
               <th className="px-2 py-2">Participant</th>
               <th className="px-2 py-2">Participating</th>
               <th className="px-2 py-2">Stake</th>
-              {isCompleted && <th className="px-2 py-2">Placement</th>}
+              {isCompleted && <th className="px-2 py-2">Payout multiplier</th>}
             </tr>
           </thead>
           <tbody>
             {data.participants.map((p) => {
               const participating = draft.participation[p.id] !== false;
-              const place = placementOf({ ...event, placements: draft.placements }, p.id);
+              const award = awardOf({ ...event, awards: draft.awards }, p.id);
               return (
                 <tr key={p.id} className="border-t border-slate-800">
                   <td className="px-2 py-1.5">
@@ -101,7 +99,7 @@ export function CorrectionModal({ event, open, onClose }: { event: EventRound; o
                       onChange={(e) => {
                         const checked = e.target.checked;
                         setDraft((d) => ({ ...d, participation: { ...d.participation, [p.id]: checked } }));
-                        if (!checked) setPlace(p.id, null);
+                        if (!checked) setAward(p.id, null);
                       }}
                     />
                   </td>
@@ -119,14 +117,17 @@ export function CorrectionModal({ event, open, onClose }: { event: EventRound; o
                     <td className="px-2 py-1.5">
                       <select
                         className={`${inputClass} w-36`}
-                        value={place ?? ''}
+                        value={award ?? ''}
                         disabled={!participating}
-                        onChange={(e) => setPlace(p.id, (e.target.value || null) as PlacementKey | null)}
+                        aria-label={`Payout multiplier for ${p.name}`}
+                        onChange={(e) => setAward(p.id, e.target.value ? Number(e.target.value) : null)}
                       >
-                        <option value="">—</option>
-                        <option value="first">1st Place</option>
-                        <option value="second">2nd Place</option>
-                        <option value="third">3rd Place</option>
+                        <option value="">— (loses stake)</option>
+                        {tierOptions.map((m) => (
+                          <option key={m} value={m}>
+                            {m}x
+                          </option>
+                        ))}
                       </select>
                     </td>
                   )}
@@ -139,7 +140,7 @@ export function CorrectionModal({ event, open, onClose }: { event: EventRound; o
 
       <div className="mt-4">
         <Field label="Correction reason (required — recorded in the audit log)">
-          <textarea className={`${inputClass} min-h-20`} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Judges reviewed the video — 2nd and 3rd place were swapped" />
+          <textarea className={`${inputClass} min-h-20`} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Judges reviewed the video — Riya should have 5x, not 4x" />
         </Field>
       </div>
 
@@ -184,6 +185,6 @@ function initial(event: EventRound, ids: string[]): RoundCorrection {
   return {
     bids,
     participation,
-    placements: { first: [...event.placements.first], second: [...event.placements.second], third: [...event.placements.third] },
+    awards: { ...event.awards },
   };
 }
