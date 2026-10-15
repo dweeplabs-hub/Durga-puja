@@ -2,13 +2,12 @@ import { useMemo } from 'react';
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type { CompetitionData, LedgerResult } from './types';
-import { defaultSettings, emptyCompetition } from './lib/defaults';
+import { emptyCompetition } from './lib/defaults';
 import { computeLedger } from './lib/engine';
-import { OpError, finalize } from './lib/operations';
+import { OpError, finalize, parseBackup } from './lib/operations';
 
 export const STORAGE_KEY = 'womens-auction-challenge:v1';
 const CHANNEL_NAME = 'womens-auction-challenge-sync';
-const LEGACY_EVENT_NAME = "Women's Auction Challenge";
 
 export interface Toast {
   id: number;
@@ -80,13 +79,18 @@ export const useCompetition = create<CompetitionStore>()(
     }),
     {
       name: STORAGE_KEY,
-      version: 2,
+      version: 3,
       storage: createJSONStorage(() => localStorage),
-      // v2: the game was renamed; carry saved events still using the old default name over to the new one.
-      migrate: (persisted, version) => {
+      // v2 renamed the game; v3 moved the name into `branding` and added the DJ/soundboard config.
+      // parseBackup normalises any older shape (and fills new fields with defaults).
+      migrate: (persisted) => {
         const state = persisted as { data?: CompetitionData; revision?: number };
-        if (version < 2 && state.data?.settings.eventName === LEGACY_EVENT_NAME) {
-          state.data = { ...state.data, settings: { ...state.data.settings, eventName: defaultSettings().eventName } };
+        if (state.data) {
+          try {
+            state.data = parseBackup(state.data);
+          } catch (err) {
+            console.error('Could not migrate saved competition data', err);
+          }
         }
         return state as CompetitionStore;
       },

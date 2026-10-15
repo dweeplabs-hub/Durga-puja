@@ -1,11 +1,13 @@
 import { Crown, Trophy } from 'lucide-react';
-import type { Participant } from '../types';
+import type { Participant, ProjectorLanguage } from '../types';
+import { tx, type TextKey } from '../lib/i18n';
+import { Bi } from './Bi';
 import { fmt } from './ui';
 
-const TITLES = ['Champion', 'First Runner-Up', 'Second Runner-Up'];
+const TITLES: TextKey[] = ['champion', 'firstRunnerUp', 'secondRunnerUp'];
 
 /** Final championship podium. Participants sharing an unresolved rank appear together. */
-export function Podium({ ranked, big = false }: { ranked: Participant[]; big?: boolean }) {
+export function Podium({ ranked, big = false, language = 'ENGLISH' }: { ranked: Participant[]; big?: boolean; language?: ProjectorLanguage }) {
   const byRank = (r: number) => ranked.filter((p) => p.currentRank === r);
   const slots = [1, 2, 3].map((r) => byRank(r));
   const order = [1, 0, 2]; // 2nd, 1st, 3rd visually
@@ -32,7 +34,7 @@ export function Podium({ ranked, big = false }: { ranked: Participant[]; big?: b
                   winners.map((w) => (
                     <div key={w.id}>
                       <p className={`font-extrabold leading-tight ${big ? 'text-4xl' : 'text-xl'}`}>{w.name}</p>
-                      <p className={`${big ? 'text-2xl' : 'text-sm'} font-semibold text-amber-200 tabular`}>{fmt(w.rankingBalance)} tokens</p>
+                      <p className={`${big ? 'text-2xl' : 'text-sm'} font-semibold text-amber-200 tabular`}>{fmt(w.rankingBalance)} {tx(language, 'tokens')}</p>
                     </div>
                   ))
                 )}
@@ -40,13 +42,13 @@ export function Podium({ ranked, big = false }: { ranked: Participant[]; big?: b
               <div className={`flex w-full flex-col items-center justify-start rounded-t-2xl bg-gradient-to-b pt-4 shadow-2xl ${colors[i]} ${heights[i]}`}>
                 <Trophy size={big ? 40 : 22} />
                 <span className={`font-black ${big ? 'text-6xl' : 'text-3xl'}`}>{i + 1}</span>
-                <span className={`mt-1 font-bold uppercase tracking-widest ${big ? 'text-lg' : 'text-xs'}`}>{TITLES[i]}</span>
+                <span className={`mt-1 px-2 text-center font-bold uppercase tracking-widest ${big ? 'text-lg' : 'text-xs'}`}><Bi lang={language} k={TITLES[i]} /></span>
               </div>
             </div>
           );
         })}
       </div>
-      {hasTies && <p className="mt-4 text-center text-sm text-rose-300">Some podium positions are tied — resolve with a final tie-break challenge.</p>}
+      {hasTies && <p className="mt-4 text-center text-sm text-rose-300"><Bi lang={language} k="podiumTie" /></p>}
     </div>
   );
 }

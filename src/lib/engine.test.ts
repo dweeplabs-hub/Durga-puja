@@ -193,3 +193,41 @@ describe('demo & backup', () => {
     expect(computeLedger(restored).ranked.map((p) => p.id)).toEqual(computeLedger(d).ranked.map((p) => p.id));
   });
 });
+
+describe('branding & audio config', () => {
+  it('migrates an older backup: name moves into branding, audio defaults are filled', async () => {
+    const { parseBackup: parse, addCustomAudioSlot, updateAudioSlot, removeCustomAudioSlot } = await import('./operations');
+    const legacy = JSON.parse(JSON.stringify(setup())) as Record<string, unknown>;
+    delete legacy.branding;
+    delete legacy.audio;
+    delete legacy.projectorLanguage;
+    (legacy.settings as Record<string, unknown>).eventName = 'Mojar Mohajuddho';
+    const d = parse(legacy);
+    expect(d.branding.titleBn).toBe('মজার মহাযুদ্ধ');
+    expect(d.branding.titleEn).toBe('Mojar Mohajuddho');
+    expect('eventName' in d.settings).toBe(false);
+    expect(d.projectorLanguage).toBe('BILINGUAL');
+    expect(d.audio.slots.map((s) => s.id)).toEqual([
+      'MAIN_INTRO',
+      'BIDDING_OPEN',
+      'THIRTY_SEC_LEFT',
+      'BIDDING_CLOSED',
+      'LEADERBOARD_REVEAL',
+      'LOAN_ISSUED',
+      'CHAMPION_CROWNED',
+    ]);
+    expect(d.audio.slots.map((s) => s.hotkey)).toEqual([1, 2, 3, 4, 5, 6, 7]);
+
+    // Custom pads take the next free hotkey, hotkeys stay unique, built-ins can't be removed.
+    let e = addCustomAudioSlot(d, 'Sponsor', 'স্পনসর');
+    const custom = e.audio.slots.at(-1)!;
+    expect(custom.hotkey).toBe(8);
+    expect(() => updateAudioSlot(e, custom.id, { hotkey: 1 })).toThrow(/already assigned/);
+    expect(() => removeCustomAudioSlot(e, 'MAIN_INTRO')).toThrow(OpError);
+    e = removeCustomAudioSlot(e, custom.id);
+    expect(e.audio.slots).toHaveLength(7);
+    // Custom pads round-trip through a backup.
+    const withPad = addCustomAudioSlot(d, 'Sponsor');
+    expect(parse(JSON.parse(JSON.stringify(withPad))).audio.slots).toHaveLength(8);
+  });
+});

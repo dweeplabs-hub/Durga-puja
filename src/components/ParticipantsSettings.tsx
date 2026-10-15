@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
-import { Database, Lock, Settings2, Trash2, Unlock, Upload, UserPlus, Users } from 'lucide-react';
-import type { Settings } from '../types';
+import { Database, Languages, Lock, Settings2, Sparkles, Trash2, Unlock, Upload, UserPlus, Users } from 'lucide-react';
+import type { Branding, Settings } from '../types';
+import { defaultBranding } from '../lib/defaults';
 import { useCompetition, useLedger, toast } from '../store';
 import {
   addParticipant,
@@ -8,6 +9,8 @@ import {
   importRoster,
   lockRules,
   removeParticipant,
+  setProjectorLanguage,
+  updateBranding,
   settingsLocked,
   unlockRules,
   updateParticipant,
@@ -22,6 +25,7 @@ export function ParticipantsSettings() {
     <div className="grid gap-6 xl:grid-cols-[1fr_1fr]">
       <ParticipantsCard />
       <div className="space-y-6">
+        <BrandingCard />
         <SettingsCard />
         <Card title="Data & Backups" icon={<Database size={18} className="text-emerald-400" />}>
           <DataTools layout="panel" />
@@ -216,11 +220,6 @@ function SettingsCard() {
     >
       {locked && <p className="mb-4 text-xs text-amber-200/80">{started ? 'Rules lock automatically once bidding opens for Event 1 or a loan is issued.' : 'Unlock to edit.'}</p>}
       <div className="grid gap-4 sm:grid-cols-2">
-        <div className="sm:col-span-2">
-          <Field label="Event name">
-            <input className={inputClass} disabled={locked} value={draft.eventName} onChange={(e) => set('eventName', e.target.value)} />
-          </Field>
-        </div>
         {num('Total events', draft.totalEvents, (n) => set('totalEvents', n))}
         {num('Starting balance', draft.startingBalance, (n) => set('startingBalance', n), 'Virtual tokens per participant')}
         {num('Min stake per event', draft.minStakePerEvent, (n) => set('minStakePerEvent', n))}
@@ -293,6 +292,57 @@ function SettingsCard() {
           </Button>
         </div>
       )}
+    </Card>
+  );
+}
+
+/** Event title & subtitle — editable at any time, even after the rules lock. */
+function BrandingCard() {
+  const branding = useCompetition((s) => s.data.branding);
+  const lang = useCompetition((s) => s.data.projectorLanguage);
+  const run = useCompetition((s) => s.run);
+  const [draft, setDraft] = useState<Branding>(branding);
+  const [last, setLast] = useState(branding);
+  if (branding !== last) {
+    setLast(branding);
+    setDraft(branding);
+  }
+  const dirty = JSON.stringify(draft) !== JSON.stringify(branding);
+  return (
+    <Card
+      title="Event Branding"
+      icon={<Sparkles size={18} className="text-fuchsia-400" />}
+      actions={
+        <div className="flex items-center gap-2 text-xs">
+          <Languages size={14} className="text-slate-400" />
+          <select className={`${inputClass} w-44 py-1 text-xs`} value={lang} onChange={(e) => run((d) => setProjectorLanguage(d, e.target.value as typeof lang))} aria-label="Projector labels">
+            <option value="BILINGUAL">Projector: বাংলা + English</option>
+            <option value="ENGLISH">Projector: English only</option>
+          </select>
+        </div>
+      }
+    >
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="Title (বাংলা)">
+          <input className={`${inputClass} font-bengali`} value={draft.titleBn} onChange={(e) => setDraft({ ...draft, titleBn: e.target.value })} />
+        </Field>
+        <Field label="Title (English)">
+          <input className={inputClass} value={draft.titleEn} onChange={(e) => setDraft({ ...draft, titleEn: e.target.value })} />
+        </Field>
+        <div className="sm:col-span-2">
+          <Field label="Subtitle">
+            <input className={inputClass} value={draft.subtitle} onChange={(e) => setDraft({ ...draft, subtitle: e.target.value })} />
+          </Field>
+        </div>
+      </div>
+      <div className="mt-4 flex justify-end gap-2">
+        <Button variant="ghost" size="sm" onClick={() => setDraft(defaultBranding())}>
+          Restore official branding
+        </Button>
+        <Button variant="primary" size="sm" disabled={!dirty} onClick={() => run((d) => updateBranding(d, draft), 'Branding updated')}>
+          Save
+        </Button>
+      </div>
     </Card>
   );
 }

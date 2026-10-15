@@ -4,6 +4,7 @@ import type { AuditType } from '../types';
 import { useCompetition, useLedger } from '../store';
 import { addAdjustment, issueLoan, nextLedgerSlot } from '../lib/operations';
 import { auditCsv, downloadFile } from '../lib/exporters';
+import { cue } from '../audio/cues';
 import { Badge, Button, Card, Field, NumberInput, inputClass, fmt } from './ui';
 
 const AUDIT_TONE: Record<AuditType, 'violet' | 'emerald' | 'amber' | 'sky'> = {
@@ -72,7 +73,7 @@ export function LoanDesk() {
             </Field>
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-slate-950 px-3 py-2 text-sm">
               <span className="text-slate-400">{slot ? `Credited before Event ${slot}'s stakes are locked.` : 'No events remain — loans are closed.'}</span>
-              <Button variant="primary" disabled={!pid || amount <= 0 || amount > headroom || !slot || data.scoresFrozen} onClick={() => run((d) => issueLoan(d, pid, amount), `Loan of ${amount} issued`)}>
+              <Button variant="primary" disabled={!pid || amount <= 0 || amount > headroom || !slot || data.scoresFrozen} onClick={() => run((d) => issueLoan(d, pid, amount), `Loan of ${amount} issued`) && cue('LOAN_ISSUED')}>
                 Issue Loan
               </Button>
             </div>

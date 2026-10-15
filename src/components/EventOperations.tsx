@@ -14,6 +14,7 @@ import {
   Pencil,
   Play,
   RotateCcw,
+  Square,
   Trophy,
   Unlock,
   Volume2,
@@ -41,10 +42,13 @@ import {
   setPlacement,
   startTimer,
   unfreezeScores,
+  updateAudio,
   updateEventMeta,
   type BidPreset,
 } from '../lib/operations';
-import { podiumConfetti, readLocalFlag, roundWinnerConfetti, writeLocalFlag } from '../lib/effects';
+import { allowClosedCue, cue, cueBiddingClosed } from '../audio/cues';
+import { audioEngine, formatTime, useAudioSnapshot } from '../audio/engine';
+import { podiumConfetti, roundWinnerConfetti } from '../lib/effects';
 import { Badge, Button, Card, Field, Modal, NumberInput, PLACE_META, StatusBadge, inputClass, fmt } from './ui';
 import { Countdown } from './Countdown';
 import { CorrectionModal } from './CorrectionModal';
@@ -210,7 +214,10 @@ function StepAnnounce({ event }: { event: EventRound }) {
   const data = useCompetition((s) => s.data);
   const run = useCompetition((s) => s.run);
   const isCurrent = event.eventNumber === data.currentEventNumber && !data.scoresFrozen;
+  const showWelcome = isCurrent && event.eventNumber === 1;
   return (
+    <>
+    {showWelcome && <WelcomeIntro />}
     <Card title="Step A · Announce & Open Bidding" icon={<Megaphone size={18} className="text-violet-400" />}>
       <EventMetaEditor event={event} />
       <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-slate-800 pt-4">
@@ -219,23 +226,56 @@ function StepAnnounce({ event }: { event: EventRound }) {
             ? `Opening bidding locks the competition rules. Stakes: ${data.settings.minStakePerEvent}–${data.settings.maxStakePerEvent} tokens.`
             : `Event ${data.currentEventNumber} is the active event — you can prepare this event's details in advance.`}
         </p>
-        <Button variant="primary" size="lg" disabled={!isCurrent || data.participants.length === 0} onClick={() => run((d) => openBidding(d, event.eventNumber), 'Bidding is open!')}>
+        <Button variant="primary" size="lg" disabled={!isCurrent || data.participants.length === 0} onClick={() => run((d) => openBidding(d, event.eventNumber), 'Bidding is open!') && cue('BIDDING_OPEN')}>
           <Unlock size={18} /> Open Bidding
         </Button>
       </div>
     </Card>
+    </>
+  );
+}
+
+/** Pre-event welcome screen with the manual Grand Intro announcement. */
+function WelcomeIntro() {
+  const branding = useCompetition((s) => s.data.branding);
+  const intro = useCompetition((s) => s.data.audio.slots.find((x) => x.id === 'MAIN_INTRO'));
+  const snap = useAudioSnapshot();
+  const playing = Boolean(snap.playing.MAIN_INTRO);
+  const p = snap.playing.MAIN_INTRO;
+  const duration = p?.duration || snap.clips.MAIN_INTRO?.duration || 0;
+  return (
+    <div className="relative overflow-hidden rounded-2xl border border-fuchsia-500/30 bg-gradient-to-br from-fuchsia-900/40 via-violet-900/30 to-slate-900 p-6">
+      <div className="pointer-events-none absolute -right-10 -top-10 h-48 w-48 rounded-full bg-amber-400/10 blur-3xl" />
+      <p className="text-xs font-semibold uppercase tracking-[0.3em] text-fuchsia-300">স্বাগতম · Welcome</p>
+      <h2 className="font-bengali mt-1 text-3xl font-black text-amber-200">{branding.titleBn || branding.titleEn}</h2>
+      {branding.titleBn && <p className="text-lg font-bold text-amber-100/80">{branding.titleEn}</p>}
+      <p className="mt-1 text-sm text-slate-300">{branding.subtitle}</p>
+      <div className="mt-5 flex flex-wrap items-center gap-4">
+        <Button variant={playing ? 'danger' : 'warning'} size="lg" onClick={() => audioEngine.toggleSlot('MAIN_INTRO')}>
+          {playing ? <Square size={18} /> : <Play size={18} />}
+          {playing ? 'Stop Intro' : 'Play Grand Intro · মূল ঘোষণা'}
+        </Button>
+        <span className="text-sm text-slate-400">
+          {snap.clips.MAIN_INTRO
+            ? playing
+              ? `${formatTime(p?.current)} / ${formatTime(duration)}`
+              : `MP3 ready · ${formatTime(duration)}`
+            : 'No intro MP3 uploaded yet — plays a fanfare. Upload it in DJ & Soundboard.'}
+          {intro?.hotkey ? ` · Alt+${intro.hotkey}` : ''}
+        </span>
+      </div>
+    </div>
   );
 }
 
 // ---------------------------------------------------------------- Step B
 
-const ADMIN_SOUND_KEY = 'wac:admin-sound';
 
 function StepBidding({ event }: { event: EventRound }) {
   const data = useCompetition((s) => s.data);
   const run = useCompetition((s) => s.run);
   const ledger = useLedger();
-  const [sound, setSound] = useState(() => readLocalFlag(ADMIN_SOUND_KEY, true));
+  const ticks = data.audio.countdownTicks;
   const [confirming, setConfirming] = useState(false);
   const [showMeta, setShowMeta] = useState(false);
   const errors = useMemo(() => bidErrors(data, event.eventNumber), [data, event.eventNumber]);
@@ -256,9 +296,9 @@ function StepBidding({ event }: { event: EventRound }) {
         icon={<Gavel size={18} className="text-amber-400" />}
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <Countdown event={event} sound={sound} />
+            <Countdown event={event} sound={false} />
             {!running && !paused && (
-              <Button size="sm" variant="warning" onClick={() => run((d) => startTimer(d, event.eventNumber, Date.now()))}>
+              <Button size="sm" variant="warning" onClick={() => run((d) => startTimer(d, event.eventNumber, Date.now())) && allowClosedCue(event.eventNumber)}>
                 <Play size={14} /> Start {Math.round(event.biddingDurationSec / 60 * 10) / 10}m timer
               </Button>
             )}
@@ -280,13 +320,10 @@ function StepBidding({ event }: { event: EventRound }) {
             <Button
               size="sm"
               variant="ghost"
-              title={sound ? 'Mute countdown beeps' : 'Enable countdown beeps'}
-              onClick={() => {
-                setSound(!sound);
-                writeLocalFlag(ADMIN_SOUND_KEY, !sound);
-              }}
+              title={ticks ? 'Mute countdown ticks (DJ setting)' : 'Enable countdown ticks (DJ setting)'}
+              onClick={() => run((d) => updateAudio(d, { countdownTicks: !ticks }))}
             >
-              {sound ? <Volume2 size={14} /> : <VolumeX size={14} />}
+              {ticks ? <Volume2 size={14} /> : <VolumeX size={14} />}
             </Button>
           </div>
         }
@@ -359,7 +396,10 @@ function StepBidding({ event }: { event: EventRound }) {
             <Button
               variant="primary"
               onClick={() => {
-                if (run((d) => lockBidding(d, event.eventNumber), 'Stakes locked and deducted from balances')) setConfirming(false);
+                if (run((d) => lockBidding(d, event.eventNumber), 'Stakes locked and deducted from balances')) {
+                  setConfirming(false);
+                  cueBiddingClosed(event.eventNumber);
+                }
               }}
             >
               <Lock size={16} /> Lock {fmt(pot)} tokens
@@ -414,7 +454,7 @@ function BidRow({ p, event, error, trancheOptions }: { p: Participant; event: Ev
               variant={low ? 'warning' : 'secondary'}
               disabled={amt > headroom}
               title={amt > headroom ? `Loan limit reached (${headroom} available)` : `Issue a ${amt}-token loan`}
-              onClick={() => run((d) => issueLoan(d, p.id, amt), `${p.name} received a ${amt}-token loan`)}
+              onClick={() => run((d) => issueLoan(d, p.id, amt), `${p.name} received a ${amt}-token loan`) && cue('LOAN_ISSUED')}
             >
               <HandCoins size={12} />+{amt}
             </Button>
@@ -607,6 +647,7 @@ function StepConduct({ event }: { event: EventRound }) {
               variant="success"
               onClick={() => {
                 if (run((d) => publishResults(d, event.eventNumber), `Event ${event.eventNumber} results published`)) {
+                  cue('LEADERBOARD_REVEAL');
                   setConfirming(false);
                   roundWinnerConfetti();
                 }
@@ -759,7 +800,10 @@ function StepSummary({ event, onSelect }: { event: EventRound; onSelect: (n: num
               variant="warning"
               size="lg"
               onClick={() => {
-                if (run(freezeScores, 'Scores frozen. Congratulations to the champions!')) podiumConfetti();
+                if (run(freezeScores, 'Scores frozen. Congratulations to the champions!')) {
+                  podiumConfetti();
+                  cue('CHAMPION_CROWNED');
+                }
               }}
             >
               <Crown size={18} /> Freeze Scores & Crown Champions

@@ -28,7 +28,6 @@ export interface LoanSettings {
 }
 
 export interface Settings {
-  eventName: string;
   totalEvents: number;
   startingBalance: number;
   minStakePerEvent: number;
@@ -142,9 +141,70 @@ export interface LedgerWarning {
   message: string;
 }
 
+export interface Branding {
+  /** Primary title in Bengali, e.g. "মজার মহাযুদ্ধ". */
+  titleBn: string;
+  /** Primary title in English / romanised, e.g. "Mojar Mohajuddho". */
+  titleEn: string;
+  subtitle: string;
+}
+
+export type ProjectorLanguage = 'BILINGUAL' | 'ENGLISH';
+
+/** Built-in synthesized sound effects. */
+export type SfxId = 'COIN' | 'TICK' | 'AIRHORN' | 'DRUMROLL' | 'FANFARE';
+
+/** What an automatic workflow trigger plays for a slot. */
+export type AudioMode = 'MP3' | 'SYNTH' | 'BOTH' | 'MUTED';
+
+export type VoiceSlotId =
+  | 'MAIN_INTRO'
+  | 'BIDDING_OPEN'
+  | 'THIRTY_SEC_LEFT'
+  | 'BIDDING_CLOSED'
+  | 'LEADERBOARD_REVEAL'
+  | 'LOAN_ISSUED'
+  | 'CHAMPION_CROWNED';
+
+export interface AudioSlotConfig {
+  /** One of VoiceSlotId for built-in slots, or "CUSTOM-…" for organizer-added slots. */
+  id: string;
+  labelBn: string;
+  labelEn: string;
+  /** Alt+<hotkey> plays the slot. */
+  hotkey: number | null;
+  /** Auto-play when the matching workflow step happens (ignored for manual-only slots). */
+  autoTrigger: boolean;
+  mode: AudioMode;
+  /** 0–1 */
+  volume: number;
+  loop: boolean;
+  custom: boolean;
+  /** Script text for custom slots (built-in slots ship their own ElevenLabs script). */
+  script: string;
+}
+
+export interface AudioConfig {
+  /** 0–1 */
+  masterVolume: number;
+  bgmVolume: number;
+  sfxVolume: number;
+  bgmLoop: boolean;
+  duckingEnabled: boolean;
+  /** Global "Auto-Trigger on Event Steps" switch. */
+  autoTriggerMaster: boolean;
+  /** Tick on each second from 00:10 to 00:01 of the bidding countdown. */
+  countdownTicks: boolean;
+  slots: AudioSlotConfig[];
+  sfxLabels: Record<SfxId, string>;
+}
+
 /** The persisted, serialisable source of truth. */
 export interface CompetitionData {
   version: 1;
+  branding: Branding;
+  projectorLanguage: ProjectorLanguage;
+  audio: AudioConfig;
   settings: Settings;
   rulesLocked: boolean;
   participants: ParticipantBase[];

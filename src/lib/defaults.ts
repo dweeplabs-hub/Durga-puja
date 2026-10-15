@@ -1,4 +1,4 @@
-import type { CompetitionData, EventRound, ParticipantBase, Settings } from '../types';
+import type { AudioConfig, AudioSlotConfig, Branding, CompetitionData, EventRound, ParticipantBase, Settings, VoiceSlotId } from '../types';
 
 export const DEFAULT_EVENT_TITLES = [
   'Precision Challenge',
@@ -15,7 +15,6 @@ export const DEFAULT_EVENT_TITLES = [
 
 export function defaultSettings(): Settings {
   return {
-    eventName: 'Mojar Mohajuddho',
     totalEvents: 10,
     startingBalance: 100,
     minStakePerEvent: 0,
@@ -32,6 +31,61 @@ export function defaultSettings(): Settings {
     },
     defaultBiddingSeconds: 120,
   };
+}
+
+export function defaultBranding(): Branding {
+  return {
+    titleBn: 'মজার মহাযুদ্ধ',
+    titleEn: 'Mojar Mohajuddho',
+    subtitle: "Women's Auction Challenge – Live Bidding & Scoring Arena",
+  };
+}
+
+/** The 7 built-in Bengali announcement slots, in hotkey order (Alt+1 … Alt+7). */
+export const VOICE_SLOT_DEFS: { id: VoiceSlotId; labelBn: string; labelEn: string; autoTrigger: boolean; trigger: string }[] = [
+  { id: 'MAIN_INTRO', labelBn: 'মূল ঘোষণা', labelEn: 'Grand Intro & Rules', autoTrigger: false, trigger: 'Manual — play from the Welcome screen (Event 1, Step A)' },
+  { id: 'BIDDING_OPEN', labelBn: 'বিডিং শুরু', labelEn: 'Bidding Open', autoTrigger: true, trigger: 'When “Open Bidding” is clicked' },
+  { id: 'THIRTY_SEC_LEFT', labelBn: '৩০ সেকেন্ড বাকি', labelEn: '30-Second Warning', autoTrigger: true, trigger: 'When the bidding countdown hits 00:30' },
+  { id: 'BIDDING_CLOSED', labelBn: 'বিডিং বন্ধ', labelEn: 'Bidding Locked', autoTrigger: true, trigger: 'When stakes are locked, or the countdown reaches 00:00' },
+  { id: 'LEADERBOARD_REVEAL', labelBn: 'ফলাফল ও লিডারবোর্ড', labelEn: 'Results & Leaderboard', autoTrigger: true, trigger: 'When “Publish Results & Update Leaderboard” is clicked' },
+  { id: 'LOAN_ISSUED', labelBn: 'টোকেন লোন', labelEn: 'Token Loan Granted', autoTrigger: false, trigger: 'When a participant receives a token loan (optional)' },
+  { id: 'CHAMPION_CROWNED', labelBn: 'চ্যাম্পিয়ন ঘোষণা', labelEn: 'Champion Reveal', autoTrigger: true, trigger: 'When final scores are frozen and the podium is revealed' },
+];
+
+export function defaultAudioConfig(): AudioConfig {
+  const slots: AudioSlotConfig[] = VOICE_SLOT_DEFS.map((d, i) => ({
+    id: d.id,
+    labelBn: d.labelBn,
+    labelEn: d.labelEn,
+    hotkey: i + 1,
+    autoTrigger: d.autoTrigger,
+    mode: 'MP3',
+    volume: 1,
+    loop: false,
+    custom: false,
+    script: '',
+  }));
+  return {
+    masterVolume: 0.9,
+    bgmVolume: 0.5,
+    sfxVolume: 0.8,
+    bgmLoop: true,
+    duckingEnabled: true,
+    autoTriggerMaster: true,
+    countdownTicks: true,
+    slots,
+    sfxLabels: { COIN: 'Coin', TICK: 'Countdown Tick', AIRHORN: 'Airhorn', DRUMROLL: 'Drumroll', FANFARE: 'Victory Fanfare' },
+  };
+}
+
+/** Fills any missing audio fields (older saves / imported backups) with defaults, keeping custom slots. */
+export function normaliseAudioConfig(raw: Partial<AudioConfig> | undefined): AudioConfig {
+  const base = defaultAudioConfig();
+  if (!raw) return base;
+  const saved = Array.isArray(raw.slots) ? raw.slots : [];
+  const builtIn = base.slots.map((b) => ({ ...b, ...saved.find((s) => s.id === b.id), custom: false }));
+  const custom = saved.filter((s) => s.custom && !builtIn.some((b) => b.id === s.id)).map((s) => ({ ...base.slots[0], ...s, custom: true }));
+  return { ...base, ...raw, sfxLabels: { ...base.sfxLabels, ...raw.sfxLabels }, slots: [...builtIn, ...custom] };
 }
 
 export function makeEvent(eventNumber: number, settings: Settings): EventRound {
@@ -56,6 +110,9 @@ export function makeEvent(eventNumber: number, settings: Settings): EventRound {
 export function emptyCompetition(settings: Settings = defaultSettings()): CompetitionData {
   return {
     version: 1,
+    branding: defaultBranding(),
+    projectorLanguage: 'BILINGUAL',
+    audio: defaultAudioConfig(),
     settings,
     rulesLocked: false,
     participants: [],

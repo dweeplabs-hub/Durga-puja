@@ -1,7 +1,8 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-sans: "Inter", "Noto Sans Bengali", "Hind Siliguri", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Nirmala UI", "Vrinda", sans-serif;
+  --font-bengali: "Noto Sans Bengali", "Hind Siliguri", "Nirmala UI", "Vrinda", ui-sans-serif, sans-serif;
 }
 
 html,
@@ -49,4 +50,18 @@ input[type='number']::-webkit-outer-spin-button {
 
 .animate-pulse-ring {
   animation: pulse-ring 1s ease-out infinite;
+}
+
+@keyframes eq {
+  0%,
+  100% {
+    height: 25%;
+  }
+  50% {
+    height: 100%;
+  }
+}
+
+.animate-eq {
+  animation: eq 0.7s ease-in-out infinite;
 }

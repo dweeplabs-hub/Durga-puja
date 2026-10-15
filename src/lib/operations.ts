@@ -1,14 +1,18 @@
 import type {
+  AudioConfig,
+  AudioSlotConfig,
   AuditEntry,
+  Branding,
   CompetitionData,
   EventRound,
   ParticipantBase,
   PlacementKey,
   Placements,
+  ProjectorLanguage,
   Settings,
 } from '../types';
 import { computeLedger, maxStakeFor, placementOf, validateBid } from './engine';
-import { DEMO_NAMES, emptyCompetition, defaultSettings, makeEvent, nextParticipantId, uid } from './defaults';
+import { DEMO_NAMES, defaultBranding, defaultSettings, emptyCompetition, makeEvent, nextParticipantId, normaliseAudioConfig, uid } from './defaults';
 
 /** Thrown when an operation violates competition rules; message is shown to the organizer. */
 export class OpError extends Error {}
@@ -111,6 +115,67 @@ export function unlockRules(d: Data): Data {
 
 export function setShowLoanColumnsPublic(d: Data, show: boolean): Data {
   return { ...d, showLoanColumnsPublic: show };
+}
+
+// ---------------------------------------------------------------- branding & audio (editable at any time)
+
+export function updateBranding(d: Data, patch: Partial<Branding>): Data {
+  const next = { ...d.branding, ...patch };
+  if (!next.titleBn.trim() && !next.titleEn.trim()) fail('Enter a Bengali or English event title');
+  return { ...d, branding: next };
+}
+
+export function setProjectorLanguage(d: Data, language: ProjectorLanguage): Data {
+  return { ...d, projectorLanguage: language };
+}
+
+const clamp01 = (n: number) => Math.min(1, Math.max(0, n));
+
+export function updateAudio(d: Data, patch: Partial<Omit<AudioConfig, 'slots'>>): Data {
+  const next = { ...d.audio, ...patch };
+  next.masterVolume = clamp01(next.masterVolume);
+  next.bgmVolume = clamp01(next.bgmVolume);
+  next.sfxVolume = clamp01(next.sfxVolume);
+  return { ...d, audio: next };
+}
+
+export function updateAudioSlot(d: Data, id: string, patch: Partial<Omit<AudioSlotConfig, 'id' | 'custom'>>): Data {
+  if (!d.audio.slots.some((s) => s.id === id)) fail('Unknown audio slot');
+  if (patch.hotkey !== undefined && patch.hotkey !== null) {
+    if (!Number.isInteger(patch.hotkey) || patch.hotkey < 1 || patch.hotkey > 9) fail('Hotkeys run from Alt+1 to Alt+9');
+    if (d.audio.slots.some((s) => s.id !== id && s.hotkey === patch.hotkey)) fail(`Alt+${patch.hotkey} is already assigned`);
+  }
+  if (patch.labelEn !== undefined && !patch.labelEn.trim() && !(patch.labelBn ?? '').trim()) fail('A slot needs a name');
+  const volume = patch.volume === undefined ? undefined : clamp01(patch.volume);
+  return {
+    ...d,
+    audio: { ...d.audio, slots: d.audio.slots.map((s) => (s.id === id ? { ...s, ...patch, ...(volume === undefined ? {} : { volume }) } : s)) },
+  };
+}
+
+export function addCustomAudioSlot(d: Data, labelEn: string, labelBn = ''): Data {
+  if (!labelEn.trim() && !labelBn.trim()) fail('Give the new pad a name');
+  const used = new Set(d.audio.slots.map((s) => s.hotkey));
+  const hotkey = [1, 2, 3, 4, 5, 6, 7, 8, 9].find((n) => !used.has(n)) ?? null;
+  const slot: AudioSlotConfig = {
+    id: uid('CUSTOM-'),
+    labelBn: labelBn.trim(),
+    labelEn: labelEn.trim(),
+    hotkey,
+    autoTrigger: false,
+    mode: 'MP3',
+    volume: 1,
+    loop: false,
+    custom: true,
+    script: '',
+  };
+  return { ...d, audio: { ...d.audio, slots: [...d.audio.slots, slot] } };
+}
+
+export function removeCustomAudioSlot(d: Data, id: string): Data {
+  const slot = d.audio.slots.find((s) => s.id === id) ?? fail('Unknown audio slot');
+  if (!slot.custom) fail('Built-in announcement slots cannot be removed (delete the file to reset it)');
+  return { ...d, audio: { ...d.audio, slots: d.audio.slots.filter((s) => s.id !== id) } };
 }
 
 // ---------------------------------------------------------------- participants
@@ -567,9 +632,10 @@ export function parseBackup(raw: unknown): Data {
   const src = (obj.data && typeof obj.data === 'object' ? obj.data : obj) as Partial<Data>;
   if (!Array.isArray(src.participants) || !Array.isArray(src.events) || !src.settings) fail('Backup is missing participants, events or settings');
   const base = defaultSettings();
+  const { eventName: legacyName, ...savedSettings } = src.settings as Settings & { eventName?: string };
   const settings: Settings = {
     ...base,
-    ...src.settings,
+    ...savedSettings,
     multipliers: { ...base.multipliers, ...src.settings.multipliers },
     placementPoints: { ...base.placementPoints, ...src.settings.placementPoints },
     loanSettings: { ...base.loanSettings, ...src.settings.loanSettings },
@@ -582,8 +648,13 @@ export function parseBackup(raw: unknown): Data {
     participation: e.participation ?? {},
   }));
   if (events.length !== settings.totalEvents) fail('Backup event count does not match its settings');
+  const branding = { ...defaultBranding(), ...src.branding };
+  if (!src.branding && legacyName && legacyName !== "Women's Auction Challenge" && legacyName !== 'Mojar Mohajuddho') branding.titleEn = legacyName;
   const data: Data = {
     version: 1,
+    branding,
+    projectorLanguage: src.projectorLanguage === 'ENGLISH' ? 'ENGLISH' : 'BILINGUAL',
+    audio: normaliseAudioConfig(src.audio),
     settings,
     rulesLocked: Boolean(src.rulesLocked),
     participants: src.participants.map((p) => ({ ...p, tieBreakOrder: Number(p.tieBreakOrder) || 0, startingBalance: Number(p.startingBalance ?? settings.startingBalance) })),
