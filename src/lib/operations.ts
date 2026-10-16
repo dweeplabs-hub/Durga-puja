@@ -119,6 +119,10 @@ export function setShowLoanColumnsPublic(d: Data, show: boolean): Data {
   return { ...d, showLoanColumnsPublic: show };
 }
 
+export function setShowLiveBids(d: Data, show: boolean): Data {
+  return { ...d, showLiveBids: show };
+}
+
 // ---------------------------------------------------------------- branding & audio (editable at any time)
 
 export function updateBranding(d: Data, patch: Partial<Branding>): Data {
@@ -664,6 +668,7 @@ export function parseBackup(raw: unknown): Data {
     currentEventNumber: Math.min(Math.max(1, Number(src.currentEventNumber) || 1), settings.totalEvents),
     scoresFrozen: Boolean(src.scoresFrozen),
     showLoanColumnsPublic: src.showLoanColumnsPublic !== false,
+    showLiveBids: src.showLiveBids !== false,
   };
   return finalize(data);
 }

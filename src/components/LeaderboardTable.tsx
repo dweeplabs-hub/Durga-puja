@@ -12,6 +12,10 @@ interface Props {
   /** Optional extra column: stake currently locked in the active event. */
   activeStakes?: Record<string, number> | null;
   activeEventNumber?: number;
+  /** Header for the activeStakes column (defaults to "Koris at Stake"). */
+  stakeLabel?: TextKey;
+  /** Flash a cell whenever its value changes (live bidding on the projector). */
+  flashStakes?: boolean;
   /** Projector only: show Bengali + English column headers. */
   language?: ProjectorLanguage;
 }
@@ -30,7 +34,7 @@ export function TieBadge({ p }: { p: Participant }) {
   return <Badge tone="violet">Tie → {TIER_LABEL[p.tieBreakTier]}</Badge>;
 }
 
-export function LeaderboardTable({ ranked, showLoans, variant, activeStakes, activeEventNumber, language = 'ENGLISH' }: Props) {
+export function LeaderboardTable({ ranked, showLoans, variant, activeStakes, activeEventNumber, stakeLabel = 'atStake', flashStakes = false, language = 'ENGLISH' }: Props) {
   const proj = variant === 'projector';
   const bi = proj && language === 'BILINGUAL';
   const h = (key: TextKey, suffix = '') =>
@@ -65,7 +69,7 @@ export function LeaderboardTable({ ranked, showLoans, variant, activeStakes, act
             {showLoans && <th className={`${th} text-right`}>{h('loanDue')}</th>}
             {showLoans && <th className={`${th} text-right`}>{h('repaid')}</th>}
             <th className={`${th} text-right`}>{h('events')}</th>
-            {activeStakes && <th className={`${th} text-right text-sky-300`}>{h('atStake', ` (E${activeEventNumber})`)}</th>}
+            {activeStakes && <th className={`${th} text-right text-sky-300`}>{h(stakeLabel, ` (E${activeEventNumber})`)}</th>}
             {!proj && <th className={`${th} text-right`}>Perf.</th>}
             {!proj && <th className={th}>Tie-break</th>}
           </tr>
@@ -97,7 +101,14 @@ export function LeaderboardTable({ ranked, showLoans, variant, activeStakes, act
               <td className={`${td} border-t border-slate-800/70 text-right text-slate-300`}>{p.eventsParticipated}</td>
               {activeStakes && (
                 <td className={`${td} border-t border-slate-800/70 text-right text-sky-300`}>
-                  <Kori n={activeStakes[p.id] ?? 0} size={proj ? 20 : 12} iconClassName="text-sky-300" />
+                  {flashStakes ? (
+                    // Keyed on the value so the highlight replays each time a bid changes.
+                    <span key={activeStakes[p.id] ?? 0} className="animate-bid-flash inline-block rounded-lg px-1">
+                      <Kori n={activeStakes[p.id] ?? 0} size={proj ? 20 : 12} iconClassName="text-sky-300" />
+                    </span>
+                  ) : (
+                    <Kori n={activeStakes[p.id] ?? 0} size={proj ? 20 : 12} iconClassName="text-sky-300" />
+                  )}
                 </td>
               )}
               {!proj && <td className={`${td} border-t border-slate-800/70 text-right text-violet-300`}>{p.performanceScore}</td>}

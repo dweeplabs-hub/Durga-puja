@@ -33,7 +33,7 @@ function useDataActions() {
     resetResults: () => {
       if (!window.confirm('Reset all results, loans and audit history but keep the participant roster and rules?')) return;
       const fresh = emptyCompetition(data.settings);
-      replaceData({ ...fresh, ...keep, participants: data.participants.map((p) => ({ ...p, tieBreakOrder: 0 })), showLoanColumnsPublic: data.showLoanColumnsPublic });
+      replaceData({ ...fresh, ...keep, participants: data.participants.map((p) => ({ ...p, tieBreakOrder: 0 })), showLoanColumnsPublic: data.showLoanColumnsPublic, showLiveBids: data.showLiveBids });
       toast.info('Results reset — roster kept');
     },
     resetAll: () => {

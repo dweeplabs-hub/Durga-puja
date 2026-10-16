@@ -66,8 +66,13 @@ export function ProjectorView({ onClose, room = null }: { onClose?: () => void; 
   const lang = data.projectorLanguage;
   const bi = lang === 'BILINGUAL';
   const { titleBn, titleEn, subtitle } = data.branding;
-  const activeStakes = current.status === 'IN_PROGRESS' ? current.bids : null;
-  const pot = current.status === 'IN_PROGRESS' ? Object.entries(current.bids).reduce((s, [id, b]) => s + (current.participation[id] === false ? 0 : b), 0) : 0;
+  // Bids show live while bidding is open (unless the admin chose sealed bids), then as locked stakes.
+  const liveBidding = current.status === 'BIDDING_OPEN' && data.showLiveBids;
+  const stakesVisible = current.status === 'IN_PROGRESS' || liveBidding;
+  const activeStakes = stakesVisible
+    ? Object.fromEntries(Object.entries(current.bids).map(([id, b]) => [id, current.participation[id] === false ? 0 : b]))
+    : null;
+  const pot = activeStakes ? Object.values(activeStakes).reduce((s, b) => s + b, 0) : 0;
   const summaryEvent = current.status === 'COMPLETED' ? current : lastCompleted;
   const summaryResults = summaryEvent ? (ledger.roundResults[summaryEvent.eventNumber] ?? []) : [];
 
@@ -146,23 +151,24 @@ export function ProjectorView({ onClose, room = null }: { onClose?: () => void; 
         ) : (
           <main className="mt-6 grid flex-1 gap-6 xl:grid-cols-[1fr_420px]">
             <div className="festive-frame rounded-3xl border border-white/10 bg-black/30 p-4 backdrop-blur">
-              <LeaderboardTable ranked={ledger.ranked} showLoans={showLoans} variant="projector" activeStakes={activeStakes} activeEventNumber={current.eventNumber} language={lang} />
+              <LeaderboardTable ranked={ledger.ranked} showLoans={showLoans} variant="projector" activeStakes={activeStakes} activeEventNumber={current.eventNumber} stakeLabel={liveBidding ? 'liveBid' : 'atStake'} flashStakes={liveBidding} language={lang} />
             </div>
             <aside className="flex flex-col gap-6">
               <div className="rounded-3xl border border-fuchsia-400/30 bg-fuchsia-500/10 p-6">
                 <p className="text-sm uppercase tracking-widest text-fuchsia-300"><Bi lang={lang} k={'nowPlaying'} /></p>
                 <h2 className="mt-1 text-3xl font-extrabold leading-tight">{current.title}</h2>
                 {current.description && <p className="mt-3 whitespace-pre-line text-lg text-slate-300">{current.description}</p>}
-                {current.status === 'IN_PROGRESS' && (
+                {stakesVisible && (
                   <div className="mt-4 flex items-center gap-3 rounded-2xl bg-sky-500/15 px-4 py-3 text-sky-200">
                     <KoriIcon size={34} filled className="text-amber-900" />
                     <div>
-                      <p className="text-sm uppercase tracking-wider"><Bi lang={lang} k={'korisInPlay'} /></p>
-                      <p className="text-3xl font-black tabular">{fmt(pot)}</p>
+                      <p className="text-sm uppercase tracking-wider"><Bi lang={lang} k={liveBidding ? 'korisBidSoFar' : 'korisInPlay'} /></p>
+                      <p key={liveBidding ? pot : undefined} className={`text-3xl font-black tabular ${liveBidding ? 'animate-bid-flash inline-block rounded-lg px-1' : ''}`}>{fmt(pot)}</p>
                     </div>
                   </div>
                 )}
                 {current.status === 'BIDDING_OPEN' && <p className="mt-4 text-xl font-semibold text-amber-300"><Bi lang={lang} k={'placeBids'} /></p>}
+                {current.status === 'BIDDING_OPEN' && !data.showLiveBids && <p className="mt-2 text-base text-slate-400"><Bi lang={lang} k={'bidsSealed'} /></p>}
                 {current.status === 'UPCOMING' && <p className="mt-4 text-xl text-slate-400"><Bi lang={lang} k={'startingSoon'} /></p>}
               </div>
 
