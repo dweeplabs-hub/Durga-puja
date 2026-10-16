@@ -161,6 +161,7 @@ export function emptyCompetition(settings: Settings = defaultSettings()): Compet
     currentEventNumber: 1,
     scoresFrozen: false,
     showLoanColumnsPublic: true,
+    showLiveBids: true,
   };
 }
 

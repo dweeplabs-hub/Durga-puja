@@ -17,6 +17,8 @@ import {
   Unlock,
   Volume2,
   VolumeX,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import type { EventRound, EventStatus, Participant } from '../types';
 import { useCompetition, useLedger } from '../store';
@@ -38,6 +40,7 @@ import {
   setBid,
   setParticipation,
   setAward,
+  setShowLiveBids,
   startTimer,
   unfreezeScores,
   updateAudio,
@@ -366,6 +369,14 @@ function StepBidding({ event }: { event: EventRound }) {
             )}
             <Button
               size="sm"
+              variant={data.showLiveBids ? 'secondary' : 'ghost'}
+              title={data.showLiveBids ? 'Bids appear live on the projector as you type — click to keep them sealed until stakes lock' : 'Bids are sealed on the projector — click to show them live'}
+              onClick={() => run((d) => setShowLiveBids(d, !d.showLiveBids))}
+            >
+              {data.showLiveBids ? <Eye size={14} /> : <EyeOff size={14} />} {data.showLiveBids ? 'Live on projector' : 'Sealed bids'}
+            </Button>
+            <Button
+              size="sm"
               variant="ghost"
               title={ticks ? 'Mute countdown ticks (DJ setting)' : 'Enable countdown ticks (DJ setting)'}
               onClick={() => run((d) => updateAudio(d, { countdownTicks: !ticks }))}
@@ -530,6 +541,7 @@ function BidRow({ p, event, error, trancheOptions }: { p: Participant; event: Ev
           invalid={Boolean(error)}
           disabled={!participating}
           ariaLabel={`Stake for ${p.name}`}
+          commitOnChange
           onCommit={(n) => run((d) => setBid(d, event.eventNumber, p.id, n))}
         />
         <div className={`mt-0.5 text-xs ${error ? 'text-rose-300' : 'text-slate-500'}`}>{error ?? `max ${fmt(cap)}`}</div>

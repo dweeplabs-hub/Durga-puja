@@ -208,6 +208,8 @@ export interface CompetitionData {
   currentEventNumber: number;
   scoresFrozen: boolean;
   showLoanColumnsPublic: boolean;
+  /** Show each bid on the projector while bidding is still open (off = sealed bids until stakes lock). */
+  showLiveBids: boolean;
 }
 
 export interface LedgerResult {

@@ -40,6 +40,10 @@ The **DJ & Soundboard** tab, plus a floating dock in Event Operations, runs all 
 - **Esc** (outside text fields and dialogs) is the panic stop.
 - Uploaded audio is stored in the browser's **IndexedDB** and survives refreshes, but it is not included in JSON backups. Upload the MP3s on the laptop that runs the show.
 
+## Live bids on the projector
+
+While bidding is open, every stake typed into Step B shows on the projector straight away, before you press Enter or leave the box. Each changed bid flashes in the **Live Bid** column, and the side panel shows a running **Koris bid so far** total. This works for a projector window on the same laptop and, through Live Sync, for a projector on another laptop. To keep bids sealed until stakes lock, switch **Live on projector** to **Sealed bids** in the Step B header.
+
 ## Live Sync (projector on a different laptop)
 
 1. **Entry laptop:** press **Live Sync** in the header and choose a room code and an organizer PIN, then press **Go Live**.
