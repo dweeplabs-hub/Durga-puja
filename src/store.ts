@@ -40,6 +40,8 @@ export const toast = {
 
 const nextRevision = (prev: number) => Math.max(prev + 1, Date.now());
 
+export type ChangeOrigin = 'local' | 'tab' | 'cloud';
+
 interface CompetitionStore {
   data: CompetitionData;
   /**
@@ -47,6 +49,8 @@ interface CompetitionStore {
    * updates with a higher revision, so stale echoes can never overwrite newer edits.
    */
   revision: number;
+  /** Where the latest change came from: an edit in this window, another tab, or the cloud. */
+  origin: ChangeOrigin;
   /**
    * Applies a pure operation to the competition data. Rule violations are shown as
    * toasts and return false; on success the new state is persisted and broadcast.
@@ -60,10 +64,11 @@ export const useCompetition = create<CompetitionStore>()(
     (set, get) => ({
       data: finalize(emptyCompetition()),
       revision: 0,
+      origin: 'local',
       run: (op, successMessage) => {
         try {
           const next = finalize(op(get().data));
-          set((s) => ({ data: next, revision: nextRevision(s.revision) }));
+          set((s) => ({ data: next, revision: nextRevision(s.revision), origin: 'local' }));
           if (successMessage) toast.success(successMessage);
           return true;
         } catch (err) {
@@ -75,7 +80,7 @@ export const useCompetition = create<CompetitionStore>()(
           return false;
         }
       },
-      replaceData: (d) => set((s) => ({ data: finalize(d), revision: nextRevision(s.revision) })),
+      replaceData: (d) => set((s) => ({ data: finalize(d), revision: nextRevision(s.revision), origin: 'local' })),
     }),
     {
       name: STORAGE_KEY,
@@ -102,6 +107,15 @@ export const useCompetition = create<CompetitionStore>()(
   ),
 );
 
+/**
+ * Applies event data received from the cloud (another laptop). Normalises it like a
+ * backup import, and marks it as cloud-originated so it is not uploaded straight back.
+ */
+export function applyCloudData(raw: unknown) {
+  const data = parseBackup(raw);
+  useCompetition.setState((s) => ({ data, revision: nextRevision(s.revision), origin: 'cloud' }));
+}
+
 /** Memoised ledger for the current data. */
 export function useLedger(): LedgerResult {
   const data = useCompetition((s) => s.data);
@@ -112,6 +126,12 @@ export function useLedger(): LedgerResult {
 
 let applyingRemote = false;
 let syncStarted = false;
+let broadcastEnabled = true;
+
+/** Read-only display windows (cloud projector) must never push their copy to other tabs. */
+export function setTabBroadcast(enabled: boolean) {
+  broadcastEnabled = enabled;
+}
 
 /**
  * Keeps every open window (admin + projector) in sync. BroadcastChannel delivers
@@ -126,7 +146,7 @@ export function startCrossWindowSync() {
     if (!(revision > useCompetition.getState().revision)) return;
     applyingRemote = true;
     try {
-      useCompetition.setState({ data, revision });
+      useCompetition.setState({ data, revision, origin: 'tab' });
     } finally {
       applyingRemote = false;
     }
@@ -148,7 +168,7 @@ export function startCrossWindowSync() {
   });
 
   useCompetition.subscribe((state, prev) => {
-    if (applyingRemote || state.revision === prev.revision) return;
+    if (applyingRemote || !broadcastEnabled || state.revision === prev.revision) return;
     channel?.postMessage({ type: 'state', data: state.data, revision: state.revision });
   });
 }

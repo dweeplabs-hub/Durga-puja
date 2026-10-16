@@ -1,4 +1,5 @@
 import { useEffect, useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { X, CheckCircle2, AlertTriangle, Info } from 'lucide-react';
 import type { EventStatus } from '../types';
 import { useToasts } from '../store';
@@ -103,7 +104,9 @@ export function Modal({
     return () => window.removeEventListener('keydown', onKey);
   }, [open, onClose]);
   if (!open) return null;
-  return (
+  // Portalled to <body>: a dialog opened from inside the blurred sticky header would otherwise
+  // be confined to the header (backdrop-filter creates a containing block for fixed elements).
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 p-4 backdrop-blur-sm" onMouseDown={onClose}>
       <div
         role="dialog"
@@ -120,7 +123,8 @@ export function Modal({
         <div className="max-h-[70vh] overflow-y-auto p-5">{children}</div>
         {footer && <footer className="flex flex-wrap justify-end gap-2 border-t border-slate-800 px-5 py-3">{footer}</footer>}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
