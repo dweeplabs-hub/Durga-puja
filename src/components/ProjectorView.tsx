@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Languages, Maximize, Minimize, Trophy, Volume2, VolumeX, X } from 'lucide-react';
-import { useCompetition, useLedger } from '../store';
+import { setTabBroadcast, toast, useCompetition, useLedger } from '../store';
+import { normaliseRoomCode, useCloud, validRoomCode } from '../lib/cloud';
+import { cloudSync } from '../lib/cloudRuntime';
 import { podiumConfetti, readLocalFlag, roundWinnerConfetti, writeLocalFlag } from '../lib/effects';
 import { LeaderboardTable } from './LeaderboardTable';
 import { Podium } from './Podium';
@@ -19,8 +21,9 @@ const SOUND_KEY = 'wac:projector-sound';
  * Audience-facing big-screen view. Contains no admin controls; it mirrors the
  * admin window live via BroadcastChannel / storage events.
  */
-export function ProjectorView({ onClose }: { onClose?: () => void }) {
+export function ProjectorView({ onClose, room = null }: { onClose?: () => void; room?: string | null }) {
   const data = useCompetition((s) => s.data);
+  useFollowRoom(room);
   const run = useCompetition((s) => s.run);
   const ledger = useLedger();
   const [sound, setSound] = useState(() => readLocalFlag(SOUND_KEY, false));
@@ -74,6 +77,7 @@ export function ProjectorView({ onClose }: { onClose?: () => void }) {
       <div className="pointer-events-none absolute -bottom-40 -right-40 h-[30rem] w-[30rem] rounded-full bg-amber-500/10 blur-3xl" />
 
       {/* Projector-local controls (hidden until hover) */}
+      {room ? <RoomStatusChip /> : !onClose && data.participants.length === 0 && <JoinRoomCard />}
       <div className="absolute right-4 top-4 z-20 flex gap-2 opacity-0 transition-opacity group-hover:opacity-100">
         <button
           type="button"
@@ -216,6 +220,73 @@ export function ProjectorView({ onClose }: { onClose?: () => void }) {
           </main>
         )}
       </div>
+    </div>
+  );
+}
+
+/** Projector laptop: follow a live room read-only while this view is open. */
+function useFollowRoom(room: string | null) {
+  useEffect(() => {
+    if (!room) return;
+    setTabBroadcast(false); // a display copy must never overwrite another tab's newer edits
+    cloudSync()
+      .view(room)
+      .catch((err: unknown) => toast.error(err instanceof Error ? err.message : String(err)));
+    return () => {
+      cloudSync().stop(false);
+      setTabBroadcast(true);
+    };
+  }, [room]);
+}
+
+function RoomStatusChip() {
+  const { status, code, error, lastSyncedAt } = useCloud();
+  const ok = status === 'live';
+  return (
+    <div
+      className={`fixed bottom-3 right-3 z-30 flex items-center gap-2 rounded-full border px-3 py-1 text-xs backdrop-blur ${
+        ok ? 'border-emerald-400/30 bg-black/40 text-emerald-200/80' : 'border-amber-400/50 bg-amber-900/50 text-amber-100'
+      }`}
+      title={error ?? (lastSyncedAt ? `Last update ${new Date(lastSyncedAt).toLocaleTimeString()}` : undefined)}
+    >
+      <span className={`h-2 w-2 rounded-full ${ok ? 'animate-pulse bg-emerald-400' : 'bg-amber-400'}`} />
+      {ok ? 'Live' : status === 'error' ? error ?? 'Sync problem' : 'Reconnecting…'} · <span className="font-mono">{code}</span>
+    </div>
+  );
+}
+
+/** Shown on a projector laptop with no local event: join the entry laptop's room. */
+function JoinRoomCard() {
+  const [code, setCode] = useState('');
+  const normalised = normaliseRoomCode(code);
+  return (
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+      <form
+        className="w-full max-w-md rounded-3xl border border-amber-400/30 bg-[#1f0a0a] p-8 text-center shadow-2xl"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (validRoomCode(normalised)) window.location.hash = `#/projector?room=${encodeURIComponent(normalised)}`;
+        }}
+      >
+        <p className="text-sm uppercase tracking-[0.3em] text-amber-300">Projector laptop</p>
+        <h2 className="mt-2 text-2xl font-bold">Join the live event</h2>
+        <p className="mt-2 text-sm text-slate-300">Enter the room code shown in Live Sync on the entry laptop.</p>
+        <input
+          autoFocus
+          aria-label="Room code"
+          className="mt-5 w-full rounded-xl border border-amber-400/40 bg-black/40 px-4 py-3 text-center font-mono text-2xl uppercase tracking-widest text-amber-100 outline-none focus:border-amber-300"
+          placeholder="MOJAR-1234"
+          value={code}
+          onChange={(e) => setCode(e.target.value)}
+        />
+        <button
+          type="submit"
+          disabled={!validRoomCode(normalised)}
+          className="mt-4 w-full rounded-xl bg-amber-400 py-3 font-bold text-amber-950 disabled:opacity-40"
+        >
+          Show live leaderboard
+        </button>
+      </form>
     </div>
   );
 }

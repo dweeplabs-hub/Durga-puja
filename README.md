@@ -40,6 +40,17 @@ The **DJ & Soundboard** tab, plus a floating dock in Event Operations, runs all 
 - **Esc** (outside text fields and dialogs) is the panic stop.
 - Uploaded audio is stored in the browser's **IndexedDB** and survives refreshes, but it is not included in JSON backups. Upload the MP3s on the laptop that runs the show.
 
+## Live Sync (projector on a different laptop)
+
+1. **Entry laptop:** press **Live Sync** in the header and choose a room code and an organizer PIN, then press **Go Live**.
+2. **Projector laptop:** open the projector link shown in the dialog (`…/#/projector?room=CODE`), or open `/#/projector` and type the room code.
+3. Every change on the entry laptop appears on the projector, pushed over Supabase Realtime. A cheap revision check every 3 s covers any gap. The projector is read-only.
+
+- **Where the data lives:** the `mojar_rooms` table in the SMSA Supabase project. Saves go through PIN-checked Postgres functions (`mojar_open_room`, `mojar_save`) with optimistic concurrency. The publishable key can read rooms but can't write them or read PIN hashes (`mojar_room_secrets`).
+- **Offline:** each laptop keeps its own local copy. If the internet drops, the entry laptop keeps working and uploads automatically when it's back.
+- **Two entry laptops:** both can use the same room code and PIN. If both save at the same instant, the later one is warned and shown the online version.
+- **Uploaded MP3s** are not synced; they stay on the laptop that plays the sound.
+
 ## Data safety
 
 - **Export / Backup**: a full JSON backup, plus CSV files for the leaderboard, the per-round ledger and the audit log.

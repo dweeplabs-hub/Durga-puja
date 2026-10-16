@@ -7,6 +7,7 @@ import { LoanDesk } from './LoanDesk';
 import { ParticipantsSettings } from './ParticipantsSettings';
 import { ProjectorView } from './ProjectorView';
 import { DataTools } from './DataTools';
+import { LiveSyncButton } from './LiveSync';
 import { KoriIcon } from './Kori';
 import { SoundboardView } from './Soundboard';
 import { MiniSoundbar } from './MiniSoundbar';
@@ -136,6 +137,7 @@ export function AdminApp() {
               <span className={`rounded-md px-2 py-1 ${data.projectorLanguage === 'BILINGUAL' ? 'bg-violet-600 text-white' : 'text-slate-400'}`}>বাংলা + EN</span>
               <span className={`rounded-md px-2 py-1 ${data.projectorLanguage === 'ENGLISH' ? 'bg-violet-600 text-white' : 'text-slate-400'}`}>EN</span>
             </button>
+            <LiveSyncButton />
             <Button size="sm" variant="primary" onClick={launchProjector}>
               <MonitorPlay size={14} /> Launch Projector View
             </Button>
