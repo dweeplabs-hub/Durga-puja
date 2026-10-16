@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
-import { ChevronDown, Download, FileJson, FileSpreadsheet, FlaskConical, RotateCcw, Upload, Users } from 'lucide-react';
+import { ChevronDown, Download, FileJson, FileSpreadsheet, RotateCcw, Upload } from 'lucide-react';
 import { useCompetition, useLedger, toast } from '../store';
-import { buildDemo, competitionStarted, parseBackup, OpError } from '../lib/operations';
+import { competitionStarted, parseBackup, OpError } from '../lib/operations';
 import { emptyCompetition } from '../lib/defaults';
 import { exportCsvBundle, exportJson } from '../lib/exporters';
 import { Button } from './ui';
@@ -12,7 +12,7 @@ function useDataActions() {
   const ledger = useLedger();
   const hasData = data.participants.length > 0 || competitionStarted(data);
 
-  // The DJ setup and branding survive demo loads and resets: uploaded MP3s live in IndexedDB regardless.
+  // The DJ setup and branding survive resets: uploaded MP3s live in IndexedDB regardless.
   const keep = { audio: data.audio, branding: data.branding, projectorLanguage: data.projectorLanguage };
 
   const guard = (message: string) => !hasData || window.confirm(`${message}\n\nTip: export a JSON backup first. Continue?`);
@@ -30,11 +30,6 @@ function useDataActions() {
         toast.error(e instanceof OpError ? e.message : `Could not read backup: ${(e as Error).message}`);
       }
     },
-    loadDemo: (rounds: number) => {
-      if (!guard('Loading demo data will replace ALL current event data.')) return;
-      replaceData({ ...buildDemo(rounds), ...keep });
-      toast.success(rounds ? `Demo loaded with ${rounds} simulated rounds` : 'Demo loaded: 12 participants ready for Event 1');
-    },
     resetResults: () => {
       if (!window.confirm('Reset all results, loans and audit history but keep the participant roster and rules?')) return;
       const fresh = emptyCompetition(data.settings);
@@ -49,11 +44,11 @@ function useDataActions() {
   };
 }
 
-/** Backup / import / demo / reset controls, rendered as a dropdown (top bar) or a panel (settings tab). */
+/** Backup / import / reset controls: backup dropdown in the top bar, full panel (incl. resets) in the settings tab. */
 export function DataTools({ layout }: { layout: 'menu' | 'panel' }) {
   const actions = useDataActions();
   const fileRef = useRef<HTMLInputElement>(null);
-  const [open, setOpen] = useState<null | 'export' | 'demo'>(null);
+  const [open, setOpen] = useState<null | 'export'>(null);
 
   const fileInput = (
     <input
@@ -82,14 +77,6 @@ export function DataTools({ layout }: { layout: 'menu' | 'panel' }) {
           </Button>
           <Button onClick={() => fileRef.current?.click()}>
             <Upload size={16} /> Restore JSON backup
-          </Button>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button onClick={() => actions.loadDemo(0)}>
-            <Users size={16} /> Load demo (12 participants)
-          </Button>
-          <Button onClick={() => actions.loadDemo(3)}>
-            <FlaskConical size={16} /> Demo + 3 simulated rounds
           </Button>
         </div>
         <div className="flex flex-wrap gap-2 border-t border-slate-800 pt-4">
@@ -125,31 +112,6 @@ export function DataTools({ layout }: { layout: 'menu' | 'panel' }) {
               </button>
               <button type="button" className={item} onClick={() => (fileRef.current?.click(), setOpen(null))}>
                 <Upload size={16} /> Restore from JSON…
-              </button>
-            </div>
-          </>
-        )}
-      </div>
-      <div className="relative">
-        <Button size="sm" onClick={() => setOpen(open === 'demo' ? null : 'demo')}>
-          <FlaskConical size={14} /> Load Demo Data <ChevronDown size={14} />
-        </Button>
-        {open === 'demo' && (
-          <>
-            <div className="fixed inset-0 z-30" onClick={() => setOpen(null)} />
-            <div className="absolute right-0 z-40 mt-1 w-72 rounded-xl border border-slate-700 bg-slate-900 p-1 shadow-2xl">
-              <button type="button" className={item} onClick={() => (actions.loadDemo(0), setOpen(null))}>
-                <Users size={16} /> 12 participants, ready for Event 1
-              </button>
-              <button type="button" className={item} onClick={() => (actions.loadDemo(3), setOpen(null))}>
-                <FlaskConical size={16} /> 12 participants + 3 simulated rounds
-              </button>
-              <div className="my-1 border-t border-slate-800" />
-              <button type="button" className={`${item} text-amber-300`} onClick={() => (actions.resetResults(), setOpen(null))}>
-                <RotateCcw size={16} /> Reset results (keep roster)
-              </button>
-              <button type="button" className={`${item} text-rose-300`} onClick={() => (actions.resetAll(), setOpen(null))}>
-                <RotateCcw size={16} /> Clean slate
               </button>
             </div>
           </>

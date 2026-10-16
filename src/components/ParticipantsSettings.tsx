@@ -146,7 +146,7 @@ function ParticipantsCard() {
             {data.participants.length === 0 && (
               <tr>
                 <td colSpan={5} className="px-2 py-8 text-center text-slate-500">
-                  No participants yet — add them above, import a CSV roster, or load demo data.
+                  No participants yet — add them above or import a CSV roster.
                 </td>
               </tr>
             )}

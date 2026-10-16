@@ -56,4 +56,4 @@ The **DJ & Soundboard** tab, plus a floating dock in Event Operations, runs all 
 - **Export / Backup**: a full JSON backup, plus CSV files for the leaderboard, the per-round ledger and the audit log.
 - **Restore from JSON**: restores a backup in any browser.
 - **Roster CSV import**: needs a `Name` column; `Starting Balance` is optional.
-- **Load Demo Data**: 12 participants, optionally with 3 simulated rounds. You can also reset results only (the roster is kept) or wipe everything.
+- **Resets** (Participants & Settings → Data & Backups): reset results only (the roster is kept) or wipe everything for a clean slate.

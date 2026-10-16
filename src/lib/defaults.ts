@@ -176,20 +176,6 @@ export function nextParticipantId(participants: ParticipantBase[]): string {
   return formatParticipantId(max + 1);
 }
 
-export const DEMO_NAMES = [
-  'Ananya Sen',
-  'Priya Banerjee',
-  'Riya Chatterjee',
-  'Moumita Das',
-  'Sohini Ghosh',
-  'Paromita Roy',
-  'Tanushree Mukherjee',
-  'Ishita Bose',
-  'Debolina Sarkar',
-  'Rupa Dutta',
-  'Kavya Iyer',
-  'Nandini Pal',
-];
 
 export function uid(prefix = ''): string {
   const rnd = typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID().slice(0, 8) : Math.random().toString(36).slice(2, 10);

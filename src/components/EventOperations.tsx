@@ -103,7 +103,7 @@ export function EventOperations({ selected, onSelect }: { selected: number; onSe
         <Stepper event={event} />
         {data.participants.length === 0 && (
           <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200">
-            No participants yet. Add them under <b>Participants & Settings</b> or use <b>Load Demo Data</b> in the top bar.
+            No participants yet. Add them under <b>Participants & Settings</b>.
           </div>
         )}
         {event.status === 'UPCOMING' && <StepAnnounce event={event} />}
@@ -293,7 +293,7 @@ function WelcomeIntro() {
   return (
     <div className="relative overflow-hidden rounded-2xl border border-fuchsia-500/30 bg-gradient-to-br from-fuchsia-900/40 via-violet-900/30 to-slate-900 p-6">
       <div className="pointer-events-none absolute -right-10 -top-10 h-48 w-48 rounded-full bg-amber-400/10 blur-3xl" />
-      <p className="text-xs font-semibold uppercase tracking-[0.3em] text-fuchsia-300">স্বাগতম · Welcome</p>
+      <p className="text-xs font-semibold uppercase tracking-[0.3em] text-fuchsia-300"><span className="font-bengali normal-case tracking-normal">স্বাগতম</span> · Welcome</p>
       <h2 className="font-bengali mt-1 text-3xl font-black text-amber-200">{branding.titleBn || branding.titleEn}</h2>
       {branding.titleBn && <p className="text-lg font-bold text-amber-100/80">{branding.titleEn}</p>}
       <p className="mt-1 text-sm text-slate-300">{branding.subtitle}</p>
