@@ -4,7 +4,6 @@ import { defaultSettings, emptyCompetition } from './defaults';
 import {
   addParticipant,
   advanceEvent,
-  buildDemo,
   correctRound,
   issueLoan,
   lockBidding,
@@ -17,6 +16,7 @@ import {
   OpError,
 } from './operations';
 import type { CompetitionData } from '../types';
+import { buildDemo } from './demo.fixture';
 
 function setup(names = ['Alice', 'Bina', 'Chitra', 'Dia']): CompetitionData {
   let d = emptyCompetition(defaultSettings());
@@ -234,7 +234,8 @@ describe('branding & audio config', () => {
 
 describe('Kori theme migration', () => {
   it('a token-era backup loads with identical rankings, balances and loan math', async () => {
-    const { parseBackup: parse, buildDemo: demo } = await import('./operations');
+    const { parseBackup: parse } = await import('./operations');
+    const demo = buildDemo;
     const { computeLedger: ledgerOf } = await import('./engine');
     // A played competition with loans, using the min-1 deduction rule so the renamed flag matters.
     const modern = demo(6);
